@@ -164,7 +164,7 @@ export const ParkingDetailPage: React.FC = () => {
 
       {/* Interactive Slot Grid Layout */}
       <div className="bg-white rounded-2xl border border-slate-200 p-6 sm:p-8 shadow-sm space-y-6">
-        <div className="flex justify-between items-center pb-4 border-b border-slate-100">
+        <div className="flex flex-col sm:flex-row gap-4 justify-between sm:items-center pb-4 border-b border-slate-100">
           <div>
             <h2 className="text-xl font-bold text-slate-900">Live Slot Occupancy Map</h2>
             <p className="text-xs text-slate-500">
@@ -172,7 +172,7 @@ export const ParkingDetailPage: React.FC = () => {
             </p>
           </div>
 
-          <div className="flex items-center gap-4 text-xs font-semibold">
+          <div className="slot-legend flex items-center gap-4 text-xs font-semibold">
             <span className="flex items-center gap-1.5"><span className="w-3 h-3 bg-emerald-500 rounded-full"></span> Available</span>
             <span className="flex items-center gap-1.5"><span className="w-3 h-3 bg-rose-500 rounded-full"></span> Occupied</span>
             <span className="flex items-center gap-1.5"><span className="w-3 h-3 bg-indigo-500 rounded-full"></span> Reserved</span>
@@ -186,12 +186,13 @@ export const ParkingDetailPage: React.FC = () => {
             {slots.map((slot) => (
               <div
                 key={slot._id}
+                data-status={slot.status}
                 onClick={() => {
                   if (slot.status === 'AVAILABLE') {
                     navigate(`/booking?parkingId=${location._id}&slotId=${slot._id}`);
                   }
                 }}
-                className={`p-4 rounded-xl border text-center transition cursor-pointer ${
+                className={`slot-tile p-4 rounded-xl border text-center transition cursor-pointer ${
                   slot.status === 'AVAILABLE'
                     ? 'bg-emerald-50/50 border-emerald-300 hover:bg-emerald-100/60'
                     : slot.status === 'OCCUPIED'
@@ -201,6 +202,7 @@ export const ParkingDetailPage: React.FC = () => {
               >
                 <span className="text-xs font-mono text-slate-400 block font-bold">SLOT</span>
                 <span className="text-lg font-black text-slate-800 block my-1">#{slot.slotNumber}</span>
+                <span className="slot-type">{slot.slotType?.replaceAll("_", " ")}</span>
                 <span
                   className={`text-[10px] font-extrabold uppercase px-2 py-0.5 rounded-full inline-block ${
                     slot.status === 'AVAILABLE'

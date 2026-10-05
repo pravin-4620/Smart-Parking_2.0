@@ -59,7 +59,7 @@ export const ManagerParkingPage: React.FC = () => {
               <div>Reserved: <span className="font-bold text-amber-600">{loc.reservedSlots}</span></div>
             </div>
             <p className="text-[11px] font-bold uppercase text-slate-400">Live occupancy</p>
-            <div className="grid grid-cols-3 sm:grid-cols-6 gap-2">{loc.slots?.map((slot: { _id: string; slotNumber: string; status: string }) => <div key={slot._id} title={slot.status} className={`rounded-lg border p-2 text-center text-[10px] font-bold ${slot.status === 'AVAILABLE' ? 'bg-emerald-50 text-emerald-700' : slot.status === 'OCCUPIED' ? 'bg-rose-50 text-rose-700' : 'bg-amber-50 text-amber-700'}`}>{slot.slotNumber}<span className="block text-[8px]">{slot.status}</span></div>)}</div>
+            <div className="grid grid-cols-3 sm:grid-cols-6 gap-2">{loc.slots?.map((slot: { _id: string; slotNumber: string; status: string }) => <div key={slot._id} title={slot.status} data-status={slot.status} className={`slot-tile slot-tile-compact rounded-lg border p-2 text-center text-[10px] font-bold ${slot.status === 'AVAILABLE' ? 'bg-emerald-50 text-emerald-700' : slot.status === 'OCCUPIED' ? 'bg-rose-50 text-rose-700' : 'bg-amber-50 text-amber-700'}`}>{slot.slotNumber}<span className="block text-[8px]">{slot.status}</span></div>)}</div>
             <p className="text-xs text-slate-500">Assigned IoT devices: <span className="font-bold text-slate-800">{loc.devices?.length ?? 0}</span></p>
           </div>
         ))}

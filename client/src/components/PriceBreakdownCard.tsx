@@ -7,9 +7,9 @@ interface PriceBreakdownCardProps {
 
 export const PriceBreakdownCard: React.FC<PriceBreakdownCardProps> = ({ pricing }) => {
   return (
-    <div className="bg-white rounded-xl border border-slate-200 p-6 shadow-sm">
+    <div className="price-summary bg-white rounded-xl border border-slate-200 p-6 shadow-sm">
       <h3 className="text-lg font-bold text-slate-800 mb-4 border-b border-slate-100 pb-3">
-        Server-Authoritative Price Breakdown
+        Your price summary
       </h3>
 
       <div className="space-y-3 mb-4">
@@ -49,7 +49,7 @@ export const PriceBreakdownCard: React.FC<PriceBreakdownCardProps> = ({ pricing 
       <div className="border-t-2 border-slate-800 pt-4 mt-4 flex justify-between items-center">
         <div>
           <span className="text-base font-bold text-slate-800 block">Total Amount Payable</span>
-          <span className="text-xs text-slate-400">Guaranteed by Tariff Engine v{pricing.pricingRuleVersion}</span>
+          <span className="text-xs text-slate-400">Pricing version {pricing.pricingRuleVersion}</span>
         </div>
         <div className="text-right">
           <span className="text-2xl font-black text-emerald-700">₹{pricing.finalAmount}</span>

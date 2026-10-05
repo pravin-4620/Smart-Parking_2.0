@@ -1,3 +1,4 @@
+import { PageHeader, Panel, SkeletonCards } from '../../components/ui/MobilityUI';
 import React, { useEffect, useState } from 'react';
 import { ShieldCheck, Users, Database, LayoutGrid, CalendarCheck } from 'lucide-react';
 import { adminService } from '../../services/adminService.js';
@@ -7,5 +8,9 @@ export const AdminDashboardPage: React.FC = () => {
   const [summary, setSummary] = useState<Summary | null>(null);
   useEffect(() => { adminService.getDashboard().then(setSummary).catch(console.error); }, []);
   const cards = summary ? [['Users', summary.totalUsers, Users], ['Parking Facilities', summary.totalLocations, Database], ['Parking Slots', summary.totalSlots, LayoutGrid], ['Reservations', summary.totalReservations, CalendarCheck]] as const : [];
-  return <div className="space-y-6 py-6"><div className="border-b pb-4"><h1 className="text-2xl font-bold text-slate-900 flex items-center gap-2"><ShieldCheck className="w-7 h-7 text-sky-600" />System Administration</h1><p className="text-slate-500 text-sm mt-1">Live platform inventory and access management.</p></div><div className="grid grid-cols-2 lg:grid-cols-4 gap-4">{cards.map(([label, value, Icon]) => <div key={label} className="bg-white p-5 rounded-xl border shadow-sm flex items-center gap-4"><Icon className="w-10 h-10 p-2 rounded-lg bg-indigo-50 text-indigo-600" /><div><p className="text-xs text-slate-500 font-semibold uppercase">{label}</p><p className="text-2xl font-bold">{value}</p></div></div>)}</div></div>;
+  return <div className="operations-page">
+    <PageHeader eyebrow="Platform administration" title="The bigger picture." description="Manage your parking network, people, and platform activity." />
+    {summary ? <div className="operations-stats admin-stats">{cards.map(([label, value, Icon]) => <div key={label} className="operations-stat"><Icon /><p>{label}</p><strong key={value}>{value}</strong></div>)}</div> : <SkeletonCards count={4} label="Loading platform inventory" />}
+    <Panel className="mt-6"><div className="flex items-start gap-4"><ShieldCheck className="text-slate-500 shrink-0" /><div><h2 className="text-lg font-semibold mb-2">Your network, connected.</h2><p className="text-sm text-slate-500 leading-relaxed">Use the navigation to manage facility access, review payments, and configure pricing across your parking locations.</p></div></div></Panel>
+  </div>;
 };

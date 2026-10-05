@@ -30,8 +30,8 @@ export const BookingSummaryCard: React.FC<BookingSummaryCardProps> = ({
   };
 
   return (
-    <div className="bg-white rounded-xl border border-slate-200 p-6 shadow-sm">
-      <div className="flex items-center justify-between pb-4 border-b border-slate-100">
+    <div className="booking-summary bg-white rounded-xl border border-slate-200 p-6 shadow-sm">
+      <div className="flex flex-col sm:flex-row items-start gap-4 justify-between pb-4 border-b border-slate-100">
         <div>
           <h2 className="text-xl font-bold text-slate-800">{parkingName}</h2>
           <p className="text-sm text-slate-500 flex items-center gap-1 mt-1">
@@ -65,7 +65,7 @@ export const BookingSummaryCard: React.FC<BookingSummaryCardProps> = ({
         </div>
       </div>
 
-      <div className="flex items-center justify-between pt-4 border-t border-slate-100 bg-slate-50 p-3 rounded-lg">
+      <div className="flex flex-wrap gap-3 items-center justify-between pt-4 border-t border-slate-100 bg-slate-50 p-3 rounded-lg">
         <div className="flex items-center gap-2 text-xs font-semibold text-slate-600">
           <Car className="w-4 h-4 text-indigo-600" />
           Total Reserved Duration: <span className="text-indigo-700 font-bold">{durationHours} Hours</span>

@@ -1,3 +1,4 @@
+import { BookingSteps } from '../components/ui/MobilityUI';
 import React, { useState, useEffect } from 'react';
 import { useSearchParams, useNavigate } from 'react-router-dom';
 import { paymentService } from '../services/payment.service.js';
@@ -42,7 +43,8 @@ export const PaymentSuccessPage: React.FC = () => {
   }
 
   return (
-    <div className="min-h-screen bg-slate-50 flex items-center justify-center p-4">
+    <div className="payment-result flex flex-col items-center justify-center py-8 gap-6">
+      <BookingSteps current={2} />
       <div className="bg-white max-w-md w-full rounded-2xl border border-slate-200 p-8 shadow-xl text-center space-y-6">
         <div className="w-16 h-16 bg-emerald-100 rounded-full flex items-center justify-center mx-auto">
           <CheckCircle2 className="w-10 h-10 text-emerald-600" />

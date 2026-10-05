@@ -1,3 +1,4 @@
+import { AuthLayout } from '../../components/ui/MobilityUI';
 import React, { useState } from 'react';
 import { Link } from 'react-router-dom';
 import { forgotPasswordApi } from '../../services/authService';
@@ -30,7 +31,7 @@ export const ForgotPasswordPage: React.FC = () => {
   };
 
   return (
-    <div className="max-w-md mx-auto my-12 bg-white p-8 rounded-xl shadow-sm border border-slate-200">
+    <AuthLayout><div className="auth-panel max-w-md mx-auto my-12 bg-white p-8 rounded-xl shadow-sm border border-slate-200">
       <div className="text-center mb-6">
         <h2 className="text-2xl font-bold text-slate-900">Forgot Password</h2>
         <p className="text-slate-500 text-sm mt-1">Enter your registered email to reset password</p>
@@ -92,6 +93,6 @@ export const ForgotPasswordPage: React.FC = () => {
           Sign In
         </Link>
       </div>
-    </div>
+    </div></AuthLayout>
   );
 };

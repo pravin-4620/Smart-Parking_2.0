@@ -1,3 +1,4 @@
+import { AuthLayout } from '../../components/ui/MobilityUI';
 import React, { useState } from 'react';
 import { useNavigate, useSearchParams, Link } from 'react-router-dom';
 import { resetPasswordApi } from '../../services/authService';
@@ -42,7 +43,7 @@ export const ResetPasswordPage: React.FC = () => {
   };
 
   return (
-    <div className="max-w-md mx-auto my-12 bg-white p-8 rounded-xl shadow-sm border border-slate-200">
+    <AuthLayout><div className="auth-panel max-w-md mx-auto my-12 bg-white p-8 rounded-xl shadow-sm border border-slate-200">
       <div className="text-center mb-6">
         <h2 className="text-2xl font-bold text-slate-900">Reset Password</h2>
         <p className="text-slate-500 text-sm mt-1">Enter your new password below</p>
@@ -109,6 +110,6 @@ export const ResetPasswordPage: React.FC = () => {
           Return to Sign In
         </Link>
       </div>
-    </div>
+    </div></AuthLayout>
   );
 };

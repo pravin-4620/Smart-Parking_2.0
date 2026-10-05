@@ -4,7 +4,8 @@ import { NearbyParkingResponse } from '@smart-parking/shared';
 import { parkingService } from '../services/parkingService.js';
 import { buildGoogleMapsDirectionsUrl } from '../utils/maps.js';
 import { GoogleMapsLibraries, loadGoogleMapsLibraries } from '../utils/googleMapsLoader.js';
-import { MapPin, Navigation, Compass, ShieldCheck, Loader2, Search, SlidersHorizontal, AlertCircle } from 'lucide-react';
+import { MapPin, Navigation, Search, SlidersHorizontal, AlertCircle, ArrowUpRight } from 'lucide-react';
+import { PageHeader, Panel, StatusBadge, SkeletonCards } from '../components/ui/MobilityUI';
 
 type Coordinates = { lat: number; lng: number };
 type DiscoveryLocation = NearbyParkingResponse & { distanceAvailable: boolean };
@@ -202,21 +203,39 @@ export const NearbyParkingPage: React.FC = () => {
   };
 
   return (
-    <div className="space-y-6">
-      <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 bg-white p-6 rounded-2xl border border-slate-200 shadow-sm">
-        <div><h1 className="text-2xl font-bold text-slate-900 flex items-center gap-2"><Compass className="w-7 h-7 text-indigo-600" /> Nearby Parking</h1><p className="text-xs text-slate-500 mt-1 flex items-center gap-1"><Navigation className="w-3.5 h-3.5 text-emerald-600" />{geoMessage}</p></div>
-        <div className="flex flex-wrap gap-2"><button onClick={requestUserLocation} className="px-4 py-2 bg-slate-100 hover:bg-slate-200 text-slate-700 font-bold rounded-xl text-xs flex items-center gap-2"><Navigation className="w-4 h-4 text-indigo-600" /> Use My Location</button><button onClick={testInBengaluru} className="px-4 py-2 bg-indigo-50 hover:bg-indigo-100 text-indigo-700 font-bold rounded-xl text-xs">Test in Bengaluru</button><button onClick={showAllFacilities} className="px-4 py-2 bg-slate-100 hover:bg-slate-200 text-slate-700 font-bold rounded-xl text-xs">All Facilities</button></div>
+    <div className="parking-discovery">
+      <PageHeader eyebrow="Explore your next stop" title="Find parking near you"
+        description={<span className="flex items-center gap-2"><Navigation size={14} />{geoMessage}</span>}
+        actions={<><button onClick={requestUserLocation} className="ui-button"><Navigation size={14} />Use My Location</button><button onClick={testInBengaluru} className="ui-button">Test in Bengaluru</button><button onClick={showAllFacilities} className="ui-button ui-button-primary">All Facilities</button></>} />
+      {(apiError || mapError) && <div role="alert" className="inline-notice"><AlertCircle size={18} className="shrink-0" /><span>{apiError ?? mapError}</span></div>}
+      <div className="discovery-controls">
+        <div className="discovery-search"><Search size={17} /><input aria-label="Search facilities by name or address" placeholder="Search a facility or address" value={searchQuery} onChange={(event) => setSearchQuery(event.target.value)} /></div>
+        <div className="discovery-radius"><SlidersHorizontal size={16} /><label htmlFor="discovery-radius">Within {radiusKm} km</label><input id="discovery-radius" type="range" min="1" max="30" value={radiusKm} onChange={(event) => setRadiusKm(Number(event.target.value))} disabled={!coords} /></div>
       </div>
-      {(apiError || mapError) && <div className="flex gap-2 rounded-xl border border-amber-200 bg-amber-50 p-3 text-sm text-amber-800"><AlertCircle className="w-5 h-5 shrink-0" /><span>{apiError ?? mapError}</span></div>}
-      <div className="relative h-[420px] overflow-hidden rounded-2xl border border-slate-200 bg-slate-100 shadow-sm">
-        <div ref={mapElement} className="h-full w-full" aria-label="Nearby parking map" />
-        {selected && <div className="absolute bottom-4 left-4 right-4 sm:right-auto sm:w-96 rounded-xl bg-white p-4 shadow-xl border border-slate-200"><h2 className="font-bold text-slate-900">{selected.name}</h2><p className="text-xs text-slate-500">{selected.address}</p><p className="mt-2 text-xs font-semibold">{selected.distanceAvailable ? `${selected.distance.toFixed(2)} km away · ` : ''}{selected.availableSlots}/{selected.totalSlots} slots available · {selected.occupancy}% occupied</p><div className="mt-3 flex gap-2"><button onClick={() => navigate(`/parking/${selected.parkingId}`)} className="rounded-lg bg-indigo-600 px-3 py-2 text-xs font-bold text-white">Parking Details</button><button onClick={() => openDirections(selected)} className="rounded-lg bg-emerald-600 px-3 py-2 text-xs font-bold text-white flex items-center gap-1"><Navigation className="w-4 h-4" /> Navigate</button></div></div>}
+      <div className="discovery-layout">
+        <div className="map-frame">
+          <div ref={mapElement} className="h-full w-full" aria-label="Nearby parking map" />
+          <div className="map-label"><MapPin size={14} />Parking discovery</div>
+          {selected && <div className="map-overlay">
+            <h2>{selected.name}</h2><p>{selected.address}</p>
+            <p className="mt-2">{selected.distanceAvailable ? `${selected.distance.toFixed(2)} km away · ` : ''}{selected.availableSlots}/{selected.totalSlots} slots available · {selected.occupancy}% occupied</p>
+            <div className="overlay-actions"><button onClick={() => navigate(`/parking/${selected.parkingId}`)} className="ui-button ui-button-dark">Parking Details</button><button onClick={() => openDirections(selected)} className="ui-button"><Navigation size={14} />Navigate</button></div>
+          </div>}
+        </div>
+        <section className="discovery-results" aria-label="Parking facilities">
+          <div className="results-heading"><h2>Places to park</h2><span>{loading ? 'Finding spaces…' : `${filteredLocations.length} facilities`}</span></div>
+          {loading ? <SkeletonCards count={3} label="Finding parking facilities" /> : filteredLocations.length === 0 ?
+            <Panel className="empty-discovery"><MapPin size={36} /><h3>No parking locations found</h3><p>Try a wider radius or choose All Facilities.<br />You can still explore the map.</p></Panel> :
+            <div className="facility-list">{filteredLocations.map((location) => <article key={location.parkingId} className={`facility-card ${selectedId === location.parkingId ? 'facility-card-selected' : ''}`}>
+              <button type="button" className="facility-select" onClick={() => selectLocation(location)} aria-pressed={selectedId === location.parkingId} aria-label={`Select ${location.name} on map`}>
+                <div className="facility-title"><h3>{location.name}</h3><span className="facility-distance">{location.operatingStatus}</span></div>
+                <p className="facility-address"><MapPin size={13} />{location.address}</p>
+                <div className="facility-meta"><StatusBadge tone={location.availableSlots > 0 ? 'success' : 'neutral'}>{location.availableSlots} / {location.totalSlots} spaces available</StatusBadge>{location.distanceAvailable && <span className="facility-distance">{location.distance.toFixed(2)} km away</span>}</div>
+              </button>
+              <div className="facility-bottom"><div className="facility-price"><strong>₹{location.startingPrice}</strong><small>starting rate / hour</small></div><button onClick={() => navigate(`/parking/${location.parkingId}`)} className="ui-button ui-button-dark">View parking <ArrowUpRight size={14} /></button></div>
+            </article>)}</div>}
+        </section>
       </div>
-      <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 bg-white p-4 rounded-xl border border-slate-200 shadow-sm">
-        <div className="sm:col-span-2 relative"><Search className="w-4 h-4 text-slate-400 absolute left-3.5 top-3" /><input type="text" placeholder="Search by facility name or address..." value={searchQuery} onChange={(event) => setSearchQuery(event.target.value)} className="w-full pl-10 pr-4 py-2 bg-slate-50 border border-slate-200 rounded-lg text-sm" /></div>
-        <div className="flex items-center gap-2"><SlidersHorizontal className="w-4 h-4 text-slate-500" /><span className="text-xs font-semibold text-slate-600 shrink-0">Radius: {radiusKm} km</span><input type="range" min="1" max="30" value={radiusKm} onChange={(event) => setRadiusKm(Number(event.target.value))} className="w-full accent-indigo-600" disabled={!coords} /></div>
-      </div>
-      {loading ? <div className="min-h-[30vh] flex items-center justify-center"><Loader2 className="w-8 h-8 text-indigo-600 animate-spin" /></div> : filteredLocations.length === 0 ? <div className="bg-white border rounded-2xl p-12 text-center text-slate-500"><MapPin className="w-12 h-12 text-slate-300 mx-auto mb-3" /><h3 className="text-lg font-bold">No Parking Locations Found</h3></div> : <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">{filteredLocations.map((location) => <button type="button" key={location.parkingId} onClick={() => selectLocation(location)} className={`text-left bg-white rounded-2xl border p-6 shadow-sm hover:shadow-md transition ${selectedId === location.parkingId ? 'border-indigo-500 ring-2 ring-indigo-100' : 'border-slate-200'}`}><div className="flex justify-between"><h2 className="font-bold text-slate-900 text-lg">{location.name}</h2><span className="text-xs font-bold text-emerald-700">{location.operatingStatus}</span></div><p className="text-xs text-slate-500 mt-2"><MapPin className="w-4 h-4 inline" /> {location.address}{location.distanceAvailable ? ` (${location.distance.toFixed(2)} km)` : ''}</p><div className="grid grid-cols-2 gap-2 my-4 bg-slate-50 p-3 rounded-xl"><div><span className="text-[11px] text-slate-400 font-bold uppercase block">Available</span><span className="text-sm font-extrabold text-indigo-600">{location.availableSlots} / {location.totalSlots}</span></div><div><span className="text-[11px] text-slate-400 font-bold uppercase block">Starting Rate</span><span className="text-sm font-extrabold">₹{location.startingPrice}/hr</span></div></div><span className="text-xs text-emerald-600 font-semibold flex items-center gap-1"><ShieldCheck className="w-4 h-4" /> Select on map</span></button>)}</div>}
     </div>
   );
 };

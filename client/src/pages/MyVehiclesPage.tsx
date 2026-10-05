@@ -99,8 +99,8 @@ export const MyVehiclesPage: React.FC = () => {
 
   return (
     <div className="space-y-6">
-      <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 bg-white p-6 rounded-2xl border border-slate-200 shadow-sm">
-        <div>
+      <header className="page-heading">
+        <div><p className="eyebrow">Your garage</p>
           <h1 className="text-2xl font-bold text-slate-900 flex items-center gap-2">
             <Car className="w-7 h-7 text-indigo-600" /> Registered Vehicles
           </h1>
@@ -115,7 +115,7 @@ export const MyVehiclesPage: React.FC = () => {
         >
           <Plus className="w-4 h-4" /> Add New Vehicle
         </button>
-      </div>
+      </header>
 
       {loading ? (
         <div className="min-h-[40vh] flex items-center justify-center">
@@ -132,9 +132,10 @@ export const MyVehiclesPage: React.FC = () => {
           {vehicles.map((v) => (
             <div
               key={v._id}
-              className="bg-white rounded-2xl border border-slate-200 p-6 shadow-sm flex flex-col justify-between space-y-4"
+              className="vehicle-card bg-white rounded-2xl border border-slate-200 p-6 shadow-sm flex flex-col justify-between space-y-4"
             >
               <div>
+                <div className="vehicle-card-art" aria-hidden="true"><Car /></div>
                 <div className="flex justify-between items-start">
                   <div className="flex items-center gap-2">
                     <span className="font-mono text-lg font-black text-slate-900 bg-slate-100 px-3 py-1 rounded-lg border border-slate-200">
@@ -158,12 +159,14 @@ export const MyVehiclesPage: React.FC = () => {
 
               <div className="flex items-center justify-end gap-2 border-t border-slate-100 pt-3">
                 <button
+                  aria-label={`Edit vehicle ${v.licensePlate}`}
                   onClick={() => handleOpenEditModal(v)}
                   className="p-2 text-slate-500 hover:text-indigo-600 hover:bg-slate-100 rounded-lg transition"
                 >
                   <Edit3 className="w-4 h-4" />
                 </button>
                 <button
+                  aria-label={`Delete vehicle ${v.licensePlate}`}
                   onClick={() => handleDelete(v._id)}
                   className="p-2 text-slate-500 hover:text-rose-600 hover:bg-rose-50 rounded-lg transition"
                 >

@@ -1,3 +1,4 @@
+import { PageHeader } from '../components/ui/MobilityUI';
 import React, { useState, useEffect } from 'react';
 import { apiClient } from '../services/api.js';
 import { CreditCard, Plus, Trash2, ShieldCheck, Loader2 } from 'lucide-react';
@@ -50,14 +51,7 @@ export const MyRFIDPage: React.FC = () => {
 
   return (
     <div className="max-w-4xl mx-auto space-y-6">
-      <div className="bg-white p-6 rounded-2xl border border-slate-200 shadow-sm">
-        <h1 className="text-2xl font-bold text-slate-900 flex items-center gap-2">
-          <CreditCard className="w-7 h-7 text-indigo-600" /> RFID Smart Passes
-        </h1>
-        <p className="text-xs text-slate-500 mt-1">
-          Physical RFID card tags for tap-to-enter automated boom barrier access.
-        </p>
-      </div>
+      <PageHeader eyebrow="Your parking activity" title="Your parking passes" description="Link a pass for tap-to-enter access and manage your existing cards." />
 
       {/* Link New RFID Card Form */}
       <div className="bg-white p-6 rounded-2xl border border-slate-200 shadow-sm space-y-4">
@@ -97,7 +91,7 @@ export const MyRFIDPage: React.FC = () => {
           {cards.map((c) => (
             <div
               key={c._id}
-              className="bg-slate-900 text-white rounded-2xl p-6 shadow-md border border-slate-800 flex flex-col justify-between space-y-4"
+              className="rfid-pass bg-slate-900 text-white rounded-2xl p-6 shadow-md border border-slate-800 flex flex-col justify-between space-y-4"
             >
               <div className="flex justify-between items-start">
                 <div>
@@ -107,6 +101,7 @@ export const MyRFIDPage: React.FC = () => {
                   <h3 className="font-bold text-base mt-1 text-slate-100">Smart Parking Pass</h3>
                 </div>
                 <button
+                  aria-label={`Unlink RFID card ${c.uid}`}
                   onClick={() => handleDeleteCard(c._id)}
                   className="p-1.5 text-slate-400 hover:text-rose-400 rounded-lg transition"
                 >

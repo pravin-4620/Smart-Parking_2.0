@@ -1,3 +1,4 @@
+import { PageHeader } from '../../components/ui/MobilityUI';
 import React, { useState, useEffect } from 'react';
 import { managerService } from '../../services/managerService.js';
 
@@ -10,7 +11,7 @@ export const ManagerDevicesPage: React.FC = () => {
 
   return (
     <div className="p-6 max-w-7xl mx-auto space-y-6">
-      <h1 className="text-2xl font-bold text-slate-900">IoT Controller Fleet</h1>
+      <PageHeader eyebrow="Connected facilities" title="Your IoT devices" description="Review controllers, facility assignments, and reported heartbeats." />
       <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
         {devices.map((d) => (
           <div key={d._id} className="bg-white p-5 rounded-2xl border border-slate-200 shadow-sm space-y-2">

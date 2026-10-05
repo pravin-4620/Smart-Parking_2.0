@@ -1,3 +1,4 @@
+import { PageHeader } from '../../components/ui/MobilityUI';
 import React, { useState, useEffect } from 'react';
 import { adminService } from '../../services/adminService.js';
 
@@ -19,9 +20,9 @@ export const AdminUsersPage: React.FC = () => {
 
   return (
     <div className="p-6 max-w-7xl mx-auto space-y-6">
-      <h1 className="text-2xl font-bold text-slate-900">Platform User Directory</h1>
+      <PageHeader eyebrow="People & permissions" title="Your user directory" description="Review registered people, access roles, and account status." />
       <div className="bg-white rounded-2xl border border-slate-200 overflow-hidden">
-        <table className="w-full text-left text-xs">
+        <table className="responsive-table w-full text-left text-xs">
           <thead className="bg-slate-50 border-b font-bold text-slate-700">
             <tr>
               <th className="p-3">Name</th>
@@ -33,9 +34,9 @@ export const AdminUsersPage: React.FC = () => {
           <tbody className="divide-y divide-slate-100">
             {users.map((u) => (
               <tr key={u._id}>
-                <td className="p-3 font-bold">{u.name}</td>
-                <td className="p-3">{u.email}</td>
-                <td className="p-3">
+                <td data-label="Name" className="p-3 font-bold">{u.name}</td>
+                <td data-label="Email" className="p-3">{u.email}</td>
+                <td data-label="Role" className="p-3">
                   <select
                     value={u.role}
                     onChange={(e) => handleRoleChange(u._id, e.target.value)}
@@ -46,7 +47,7 @@ export const AdminUsersPage: React.FC = () => {
                     <option value="ADMIN">ADMIN</option>
                   </select>
                 </td>
-                <td className="p-3 font-bold">{u.isActive ? 'ACTIVE' : 'INACTIVE'}</td>
+                <td data-label="Status" className="p-3 font-bold">{u.isActive ? 'ACTIVE' : 'INACTIVE'}</td>
               </tr>
             ))}
           </tbody>

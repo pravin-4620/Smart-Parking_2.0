@@ -1,6 +1,7 @@
+import { PageHeader } from '../components/ui/MobilityUI';
 import React, { useState, useEffect } from 'react';
 import { apiClient } from '../services/api.js';
-import { Radio, MapPin, Clock, Loader2 } from 'lucide-react';
+import { MapPin, Clock, Loader2 } from 'lucide-react';
 
 export const MySessionsPage: React.FC = () => {
   const [sessions, setSessions] = useState<any[]>([]);
@@ -24,14 +25,7 @@ export const MySessionsPage: React.FC = () => {
 
   return (
     <div className="space-y-6">
-      <div className="bg-white p-6 rounded-2xl border border-slate-200 shadow-sm">
-        <h1 className="text-2xl font-bold text-slate-900 flex items-center gap-2">
-          <Radio className="w-7 h-7 text-indigo-600" /> Active & Live Parking Sessions
-        </h1>
-        <p className="text-xs text-slate-500 mt-1">
-          Automated IR sensor and RFID barrier entry/exit event logs.
-        </p>
-      </div>
+      <PageHeader eyebrow="Your parking activity" title="Your parking sessions" description="Your arrivals, departures, and time spent parked." />
 
       {loading ? (
         <div className="min-h-[40vh] flex items-center justify-center">

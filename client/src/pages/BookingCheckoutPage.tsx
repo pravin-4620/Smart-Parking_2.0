@@ -1,3 +1,4 @@
+import { BookingSteps } from '../components/ui/MobilityUI';
 import React, { useState, useEffect } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { apiClient } from '../services/api.js';
@@ -158,13 +159,14 @@ export const BookingCheckoutPage: React.FC = () => {
   }
 
   return (
-    <div className="min-h-screen bg-slate-50 py-10 px-4">
+    <div className="checkout-page min-h-screen bg-slate-50 py-10 px-4">
       <div className="max-w-4xl mx-auto space-y-6">
         <div>
           <h1 className="text-2xl font-bold text-slate-900">Checkout & Payment</h1>
           <p className="text-sm text-slate-500">Review your slot reservation details and proceed to secure checkout.</p>
         </div>
 
+        <BookingSteps current={1} />
         <div className="grid md:grid-cols-2 gap-6">
           <BookingSummaryCard
             parkingName={reservation.parkingLocationId?.name || 'Smart Parking Facility'}

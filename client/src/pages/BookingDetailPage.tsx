@@ -67,7 +67,7 @@ export const BookingDetailPage: React.FC = () => {
   }
 
   return (
-    <div className="max-w-3xl mx-auto space-y-6">
+    <div className="booking-detail max-w-3xl mx-auto space-y-6">
       <button
         onClick={() => navigate('/my-bookings')}
         className="text-xs font-bold text-slate-600 hover:text-slate-900 flex items-center gap-1"
@@ -154,7 +154,7 @@ export const BookingDetailPage: React.FC = () => {
         </div>
 
         {/* Pricing Snapshot */}
-        <div className="flex justify-between items-center pt-2">
+        <div className="flex flex-wrap gap-3 justify-between items-center pt-2">
           <div>
             <span className="text-xs text-slate-400 font-bold uppercase block">Amount Paid / Tariff</span>
             <span className="text-xl font-extrabold text-emerald-600">

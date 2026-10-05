@@ -1,3 +1,4 @@
+import { BookingSteps, PageHeader } from '../components/ui/MobilityUI';
 import React, { useState, useEffect } from 'react';
 import { useNavigate, useSearchParams } from 'react-router-dom';
 import { apiClient } from '../services/api.js';
@@ -128,12 +129,14 @@ export const NewBookingPage: React.FC = () => {
   };
 
   return (
-    <div className="max-w-3xl mx-auto space-y-6">
-      <div className="bg-white p-6 sm:p-8 rounded-2xl border border-slate-200 shadow-sm space-y-6">
+    <div className="booking-page space-y-6">
+      <PageHeader eyebrow="Make room for your plans" title="Reserve your parking" description="Choose where and when. Review your price before you pay." />
+      <BookingSteps current={0} />
+      <div className="booking-form-panel bg-white p-6 sm:p-8 rounded-2xl border border-slate-200 shadow-sm space-y-6">
         <div>
-          <h1 className="text-2xl font-bold text-slate-900 flex items-center gap-2">
+          <h2 className="text-xl font-bold text-slate-900 flex items-center gap-2">
             <CalendarCheck className="w-7 h-7 text-indigo-600" /> New Parking Reservation
-          </h1>
+          </h2>
           <p className="text-xs text-slate-500 mt-1">
             Complete the booking wizard to lock your guaranteed parking bay.
           </p>

@@ -1,13 +1,11 @@
 import { io, Socket } from 'socket.io-client';
 
-const apiUrl = import.meta.env.VITE_API_URL;
-const SOCKET_URL = apiUrl ? new URL(apiUrl).origin : window.location.origin;
-
 let socket: Socket | null = null;
 
 export const getSocket = (): Socket => {
   if (!socket) {
-    socket = io(SOCKET_URL, {
+    socket = io(window.location.origin, {
+      path: '/socket.io',
       transports: ['websocket', 'polling'],
       autoConnect: true,
       reconnectionAttempts: 10,

@@ -1,3 +1,4 @@
+import { AuthLayout } from '../../components/ui/MobilityUI';
 import React, { useState } from 'react';
 import { useNavigate, Link } from 'react-router-dom';
 import { useAuth } from '../../hooks/useAuth';
@@ -38,7 +39,7 @@ export const RegisterPage: React.FC = () => {
   };
 
   return (
-    <div className="max-w-md mx-auto my-10 bg-white p-8 rounded-xl shadow-sm border border-slate-200">
+    <AuthLayout><div className="auth-panel max-w-md mx-auto my-10 bg-white p-8 rounded-xl shadow-sm border border-slate-200">
       <div className="text-center mb-6">
         <h2 className="text-2xl font-bold text-slate-900">Create an Account</h2>
         <p className="text-slate-500 text-sm mt-1">Join Smart Parking Platform</p>
@@ -143,6 +144,6 @@ export const RegisterPage: React.FC = () => {
           Sign In Here
         </Link>
       </div>
-    </div>
+    </div></AuthLayout>
   );
 };

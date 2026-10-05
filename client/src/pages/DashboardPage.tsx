@@ -1,3 +1,4 @@
+import { MobilityIllustration, SkeletonCards } from '../components/ui/MobilityUI';
 import React, { useState, useEffect } from 'react';
 import { useNavigate, Link } from 'react-router-dom';
 import { apiClient } from '../services/api.js';
@@ -7,10 +8,7 @@ import {
   CalendarCheck,
   Clock,
   Car,
-  Zap,
   ArrowRight,
-  ShieldCheck,
-  Loader2,
   AlertCircle,
   Plus,
 } from 'lucide-react';
@@ -88,107 +86,21 @@ export const DashboardPage: React.FC = () => {
   };
 
   if (loading) {
-    return (
-      <div className="min-h-[70vh] flex items-center justify-center">
-        <Loader2 className="w-8 h-8 text-indigo-600 animate-spin" />
-      </div>
-    );
+    return <SkeletonCards count={3} label="Loading your parking activity" />;
   }
 
   return (
-    <div className="space-y-8">
-      {/* Hero Welcome Banner */}
-      <div className="bg-gradient-to-r from-slate-900 via-indigo-950 to-slate-900 rounded-2xl p-6 sm:p-8 text-white shadow-xl relative overflow-hidden">
-        <div className="relative z-10 max-w-2xl space-y-4">
-          <div className="inline-flex items-center gap-2 px-3 py-1 bg-indigo-500/20 border border-indigo-400/30 rounded-full text-indigo-300 text-xs font-semibold backdrop-blur-sm">
-            <Zap className="w-3.5 h-3.5" /> Real-time IoT Slot Allocation
-          </div>
-          <h1 className="text-2xl sm:text-3xl font-extrabold tracking-tight">
-            Smart Parking Driver Portal
-          </h1>
-          <p className="text-sm text-slate-300">
-            Find, reserve, and pay for guaranteed parking slots powered by IoT occupancy sensors and dynamic pricing.
-          </p>
-
-          <div className="pt-2 flex flex-wrap gap-3">
-            <button
-              onClick={() => navigate('/booking')}
-              className="px-5 py-2.5 bg-indigo-600 hover:bg-indigo-500 text-white font-bold rounded-xl text-sm shadow-lg shadow-indigo-600/30 flex items-center gap-2 transition"
-            >
-              <Plus className="w-4 h-4" /> Quick Reserve
-            </button>
-            <button
-              onClick={() => navigate('/nearby')}
-              className="px-5 py-2.5 bg-slate-800 hover:bg-slate-700 text-slate-200 font-bold rounded-xl text-sm border border-slate-700 flex items-center gap-2 transition"
-            >
-              <Compass className="w-4 h-4 text-emerald-400" /> Explore Nearby
-            </button>
-          </div>
-        </div>
-      </div>
-
-      {/* Grid Status Row */}
-      <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-        {/* Current Location Card */}
-        <div className="bg-white rounded-xl border border-slate-200 p-6 shadow-sm flex items-start gap-4">
-          <div className="p-3 bg-emerald-50 text-emerald-600 rounded-xl shrink-0">
-            <MapPin className="w-6 h-6" />
-          </div>
-          <div>
-            <span className="text-xs text-slate-400 font-bold uppercase block">Current Location</span>
-            <span className="text-sm font-bold text-slate-800 block mt-1">
-              {currentLocation ? `${currentLocation.lat.toFixed(4)}° N, ${currentLocation.lng.toFixed(4)}° E` : 'Bengaluru City Center'}
-            </span>
-            <span className="text-xs text-emerald-600 font-medium flex items-center gap-1 mt-1">
-              <ShieldCheck className="w-3.5 h-3.5" /> GPS Active
-            </span>
-          </div>
-        </div>
-
-        {/* Upcoming Booking Card */}
-        <div className="bg-white rounded-xl border border-slate-200 p-6 shadow-sm flex items-start gap-4">
-          <div className="p-3 bg-indigo-50 text-indigo-600 rounded-xl shrink-0">
-            <CalendarCheck className="w-6 h-6" />
-          </div>
-          <div className="flex-1 min-w-0">
-            <span className="text-xs text-slate-400 font-bold uppercase block">Upcoming Reservation</span>
-            {upcomingBooking ? (
-              <div>
-                <span className="text-sm font-bold text-slate-800 block truncate mt-1">
-                  {upcomingBooking.parkingLocationId?.name || 'Smart Parking'}
-                </span>
-                <span className="text-xs text-indigo-600 font-semibold block mt-0.5">
-                  Slot #{upcomingBooking.slotId?.slotNumber || 'Assigned'} — {new Date(upcomingBooking.startTime).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
-                </span>
-              </div>
-            ) : (
-              <span className="text-xs text-slate-500 block mt-1">No active upcoming booking</span>
-            )}
-          </div>
-        </div>
-
-        {/* Active Session Card */}
-        <div className="bg-white rounded-xl border border-slate-200 p-6 shadow-sm flex items-start gap-4">
-          <div className="p-3 bg-amber-50 text-amber-600 rounded-xl shrink-0">
-            <Clock className="w-6 h-6" />
-          </div>
-          <div>
-            <span className="text-xs text-slate-400 font-bold uppercase block">Active Parking Session</span>
-            {activeSession ? (
-              <div>
-                <span className="text-sm font-bold text-emerald-600 block mt-1">
-                  PARKED NOW
-                </span>
-                <span className="text-xs text-slate-500 block">
-                  Entry: {new Date(activeSession.entryTime).toLocaleTimeString()}
-                </span>
-              </div>
-            ) : (
-              <span className="text-xs text-slate-500 block mt-1">Not parked in any facility</span>
-            )}
-          </div>
-        </div>
-      </div>
+    <div className="driver-dashboard space-y-8">
+      <section className="dashboard-hero">
+        <div><p className="eyebrow">Your everyday parking, simplified</p><h1>A space for wherever<br />life takes you.</h1><p>Find nearby parking, reserve your next stop, and keep every journey moving.</p>
+          <div className="dashboard-actions"><button onClick={() => navigate('/nearby')} className="ui-button ui-button-dark"><Compass size={16} />Explore Nearby</button><button onClick={() => navigate('/booking')} className="ui-button"><Plus size={16} />Quick Reserve</button></div>
+        </div><MobilityIllustration />
+      </section>
+      <section aria-label="Your parking activity" className="activity-row">
+        <div><MapPin size={21} className="mb-4 text-slate-500" /><span className="metric-label">Your location</span><span className="metric-value">{currentLocation ? `${currentLocation.lat.toFixed(4)}° N, ${currentLocation.lng.toFixed(4)}° E` : 'Bengaluru City Center'}</span><span className="metric-detail">Your parking search starts here</span></div>
+        <div><CalendarCheck size={21} className="mb-4 text-indigo-600" /><span className="metric-label">Upcoming reservation</span>{upcomingBooking ? <><span className="metric-value">{upcomingBooking.parkingLocationId?.name || 'Smart Parking'}</span><span className="metric-detail">Slot #{upcomingBooking.slotId?.slotNumber || 'Assigned'} · {new Date(upcomingBooking.startTime).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}</span></> : <><span className="metric-value">Your next stop awaits</span><span className="metric-detail">No active upcoming booking</span></>}</div>
+        <div><Clock size={21} className="mb-4 text-slate-500" /><span className="metric-label">Current parking session</span>{activeSession ? <><span className="metric-value text-emerald-600">Parked now</span><span className="metric-detail">Entry: {new Date(activeSession.entryTime).toLocaleTimeString()}</span></> : <><span className="metric-value">You're on the move</span><span className="metric-detail">Not parked in any facility</span></>}</div>
+      </section>
 
       {/* Nearby Parking Facility Section */}
       <div className="space-y-4">

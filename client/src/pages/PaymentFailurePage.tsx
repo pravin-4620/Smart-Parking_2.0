@@ -10,7 +10,7 @@ export const PaymentFailurePage: React.FC = () => {
   const errorMsg = searchParams.get('error') || 'Payment processing was cancelled or signature verification failed.';
 
   return (
-    <div className="min-h-screen bg-slate-50 flex items-center justify-center p-4">
+    <div className="payment-result flex items-center justify-center py-8">
       <div className="bg-white max-w-md w-full rounded-2xl border border-slate-200 p-8 shadow-xl text-center space-y-6">
         <div className="w-16 h-16 bg-rose-100 rounded-full flex items-center justify-center mx-auto">
           <XCircle className="w-10 h-10 text-rose-600" />

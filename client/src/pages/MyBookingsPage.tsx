@@ -34,8 +34,8 @@ export const MyBookingsPage: React.FC = () => {
 
   return (
     <div className="space-y-6">
-      <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 bg-white p-6 rounded-2xl border border-slate-200 shadow-sm">
-        <div>
+      <header className="page-heading">
+        <div><p className="eyebrow">Your parking plans</p>
           <h1 className="text-2xl font-bold text-slate-900 flex items-center gap-2">
             <Clock className="w-7 h-7 text-indigo-600" /> My Booking History
           </h1>
@@ -50,7 +50,7 @@ export const MyBookingsPage: React.FC = () => {
         >
           <CalendarCheck className="w-4 h-4" /> New Booking
         </button>
-      </div>
+      </header>
 
       {/* Status Filter Tabs */}
       <div className="flex items-center gap-2 overflow-x-auto pb-2 border-b border-slate-200">

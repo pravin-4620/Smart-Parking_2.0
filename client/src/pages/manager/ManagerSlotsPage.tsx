@@ -53,7 +53,8 @@ export const ManagerSlotsPage: React.FC = () => {
         {slots.map((slot) => (
           <div
             key={slot._id}
-            className={`p-4 rounded-xl border flex flex-col justify-between transition ${
+            data-status={slot.status}
+            className={`slot-tile p-4 rounded-xl border flex flex-col justify-between transition ${
               slot.status === 'AVAILABLE'
                 ? 'bg-emerald-50 border-emerald-300 text-emerald-900'
                 : slot.status === 'OCCUPIED'
@@ -82,4 +83,3 @@ export const ManagerSlotsPage: React.FC = () => {
     </div>
   );
 };
-

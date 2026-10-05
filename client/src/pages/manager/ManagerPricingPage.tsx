@@ -1,3 +1,4 @@
+import { PageHeader } from '../../components/ui/MobilityUI';
 import React, { useEffect, useMemo, useState } from 'react';
 import axios from 'axios';
 import { Loader2, RotateCcw, Save } from 'lucide-react';
@@ -57,7 +58,7 @@ export const ManagerPricingPage: React.FC = () => {
   const numberField = (label: string, field: keyof Omit<PricingForm, 'slotPrices'>, options?: { min?: number; step?: number }) => <label className="space-y-1 text-sm font-semibold text-slate-700"><span>{label}</span><input type="number" min={options?.min ?? 0} step={options?.step ?? 1} required value={form?.[field] ?? 0} onChange={(event) => changeNumber(field, event.target.value)} className="w-full rounded-lg border border-slate-300 px-3 py-2 font-normal" /></label>;
 
   return <div className="p-6 max-w-7xl mx-auto space-y-6">
-    <div><h1 className="text-2xl font-bold text-slate-900">Manager Pricing</h1><p className="text-sm text-slate-500">Set facility and slot rates used by the server for future reservations.</p></div>
+    <PageHeader eyebrow="Rates & policies" title="Parking pricing" description="Set facility rates, slot overrides, and overstay policies for future reservations." />
     <label className="block max-w-xl space-y-1 text-sm font-semibold text-slate-700"><span>Parking facility</span><select value={locationId} onChange={(event) => selectLocation(event.target.value)} className="w-full rounded-lg border border-slate-300 bg-white px-3 py-2"><option value="">Select a facility</option>{locations.map((location) => <option key={location._id} value={location._id}>{location.name} — {location.address}</option>)}</select></label>
     {notice && <div role="status" className={`rounded-xl border p-3 text-sm ${notice.type === 'success' ? 'border-emerald-200 bg-emerald-50 text-emerald-800' : 'border-red-200 bg-red-50 text-red-800'}`}>{notice.text}</div>}
     {loading ? <div className="flex justify-center p-12"><Loader2 className="h-7 w-7 animate-spin text-indigo-600" /></div> : form && config ? <>

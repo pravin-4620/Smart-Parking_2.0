@@ -1,6 +1,6 @@
 import axios, { AxiosError, InternalAxiosRequestConfig } from 'axios';
 
-const API_BASE_URL = import.meta.env.VITE_API_URL || '/api';
+const API_BASE_URL = '/api';
 export const AUTH_TOKEN_EVENT = 'smart-parking:auth-token';
 
 export const getStoredAccessToken = (): string | null => localStorage.getItem('accessToken');
