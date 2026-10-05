@@ -131,6 +131,12 @@ export class RFIDService {
       if (activeSession) {
         activeSession.status = SessionStatus.COMPLETED;
         activeSession.checkOutTime = new Date();
+        activeSession.durationMinutes = Math.max(
+          0,
+          Math.round(
+            (activeSession.checkOutTime.getTime() - activeSession.checkInTime.getTime()) / 60000
+          )
+        );
         await activeSession.save();
 
         if (activeSession.slotId) {
@@ -163,6 +169,12 @@ export class RFIDService {
           sessionId: activeSession._id.toString(),
           status: SessionStatus.COMPLETED,
         });
+      } else {
+        return {
+          allowed: false,
+          action: 'KEEP_CLOSED',
+          reason: 'No active parking session found for this RFID tag',
+        };
       }
 
       if (Types.ObjectId.isValid(parkingLocationId)) {

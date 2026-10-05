@@ -11,6 +11,11 @@ export const managerService = {
     return res.data.data;
   },
 
+  getLocations: async () => {
+    const res = await apiClient.get('/manager/parking');
+    return res.data.data;
+  },
+
   getSlots: async (parkingLocationId?: string) => {
     const res = await apiClient.get('/manager/slots', { params: { parkingLocationId } });
     return res.data.data;
@@ -46,6 +51,21 @@ export const managerService = {
     return res.data.data;
   },
 
+  getPricingForLocation: async (parkingLocationId: string) => {
+    const res = await apiClient.get(`/pricing/location/${parkingLocationId}`);
+    return res.data.data;
+  },
+
+  updatePricing: async (parkingLocationId: string, data: unknown) => {
+    const res = await apiClient.put(`/pricing/location/${parkingLocationId}`, data);
+    return res.data.data;
+  },
+
+  cancelReservation: async (reservationId: string) => {
+    const res = await apiClient.patch(`/manager/reservations/${reservationId}/cancel`);
+    return res.data.data;
+  },
+
   getAnalytics: async (parkingLocationId?: string) => {
     const res = await apiClient.get('/manager/analytics', { params: { parkingLocationId } });
     return res.data.data;
@@ -56,4 +76,3 @@ export const managerService = {
     return res.data.data;
   },
 };
-

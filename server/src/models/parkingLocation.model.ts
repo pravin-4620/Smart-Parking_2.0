@@ -22,6 +22,12 @@ export interface IParkingLocation extends Document {
   status: ParkingStatus;
   managerIds: Types.ObjectId[];
   pricingProfileId?: Types.ObjectId;
+  overstayConfig?: {
+    gracePeriodMinutes: number;
+    fineIntervalMinutes: number;
+    fineAmountPerInterval: number;
+    maximumFineAmount: number;
+  };
   createdAt: Date;
   updatedAt: Date;
 }
@@ -97,6 +103,12 @@ const parkingLocationSchema = new Schema<IParkingLocation>(
     pricingProfileId: {
       type: Schema.Types.ObjectId,
       ref: 'PricingProfile',
+    },
+    overstayConfig: {
+      gracePeriodMinutes: { type: Number, default: 10 },
+      fineIntervalMinutes: { type: Number, default: 15 },
+      fineAmountPerInterval: { type: Number, default: 20 },
+      maximumFineAmount: { type: Number, default: 500 },
     },
   },
   {

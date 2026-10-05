@@ -108,8 +108,7 @@ describe('Authentication & Role-Based Access Control Integration Tests', () => {
     expect(res.body.accessToken).toBeDefined();
   });
 
-  it('7. Register Manager & Admin for RBAC testing', async () => {
-    // Register Parking Manager
+  it('7. Public registration cannot self-assign privileged roles', async () => {
     const managerRes = await request(app)
       .post('/api/auth/register')
       .send({
@@ -120,7 +119,7 @@ describe('Authentication & Role-Based Access Control Integration Tests', () => {
       });
 
     expect(managerRes.status).toBe(201);
-    managerToken = managerRes.body.accessToken;
+    expect(managerRes.body.user.role).toBe(UserRole.USER);
 
     // Register Admin
     const adminRes = await request(app)
@@ -133,7 +132,14 @@ describe('Authentication & Role-Based Access Control Integration Tests', () => {
       });
 
     expect(adminRes.status).toBe(201);
-    adminToken = adminRes.body.accessToken;
+    expect(adminRes.body.user.role).toBe(UserRole.USER);
+
+    await User.updateOne({ email: 'manager@example.com' }, { role: UserRole.PARKING_MANAGER });
+    await User.updateOne({ email: 'admin@example.com' }, { role: UserRole.ADMIN });
+    const managerLogin = await request(app).post('/api/auth/login').send({ email: 'manager@example.com', password: 'password123' });
+    const adminLogin = await request(app).post('/api/auth/login').send({ email: 'admin@example.com', password: 'password123' });
+    managerToken = managerLogin.body.accessToken;
+    adminToken = adminLogin.body.accessToken;
   });
 
   it('8. RBAC: USER cannot access ADMIN endpoint', async () => {

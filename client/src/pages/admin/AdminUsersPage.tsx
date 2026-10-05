@@ -27,6 +27,7 @@ export const AdminUsersPage: React.FC = () => {
               <th className="p-3">Name</th>
               <th className="p-3">Email</th>
               <th className="p-3">Role</th>
+              <th className="p-3">Status</th>
             </tr>
           </thead>
           <tbody className="divide-y divide-slate-100">
@@ -45,6 +46,7 @@ export const AdminUsersPage: React.FC = () => {
                     <option value="ADMIN">ADMIN</option>
                   </select>
                 </td>
+                <td className="p-3 font-bold">{u.isActive ? 'ACTIVE' : 'INACTIVE'}</td>
               </tr>
             ))}
           </tbody>
@@ -53,4 +55,3 @@ export const AdminUsersPage: React.FC = () => {
     </div>
   );
 };
-

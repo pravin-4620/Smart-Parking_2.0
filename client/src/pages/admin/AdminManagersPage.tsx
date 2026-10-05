@@ -1,19 +1,14 @@
-import React, { useState, useEffect } from 'react';
+import React, { useEffect, useState } from 'react';
 import { adminService } from '../../services/adminService.js';
 
+interface Facility { _id: string; name: string; }
+interface Manager { _id: string; name: string; email: string; phone?: string; isActive: boolean; assignedParking: Facility[]; }
 export const AdminManagersPage: React.FC = () => {
-  const [managers, setManagers] = useState<any[]>([]);
-
-  useEffect(() => {
-    adminService.getManagers().then(setManagers).catch(console.error);
-  }, []);
-
-  return (
-    <div className="p-6 max-w-7xl mx-auto space-y-6">
-      <h1 className="text-2xl font-bold text-slate-900">Manager Facility Assignments</h1>
-      <div className="bg-white rounded-2xl border border-slate-200 p-6">
-        <pre className="text-xs bg-slate-50 p-4 rounded-xl overflow-x-auto">{JSON.stringify(managers, null, 2)}</pre>
-      </div>
-    </div>
-  );
+  const [managers, setManagers] = useState<Manager[]>([]);
+  const [facilities, setFacilities] = useState<Facility[]>([]);
+  const [form, setForm] = useState({ name: '', email: '', phone: '', password: '', parkingLocationId: '' });
+  const load = () => Promise.all([adminService.getManagers(), adminService.getParking()]).then(([managerRows, parkingRows]) => { setManagers(managerRows); setFacilities(parkingRows); });
+  useEffect(() => { load().catch(console.error); }, []);
+  const create = async (event: React.FormEvent) => { event.preventDefault(); await adminService.createManager(form); setForm({ name: '', email: '', phone: '', password: '', parkingLocationId: '' }); await load(); };
+  return <div className="p-6 max-w-7xl mx-auto space-y-6"><div><h1 className="text-2xl font-bold">Parking Managers</h1><p className="text-sm text-slate-500">Create manager accounts and control facility assignments.</p></div><form onSubmit={create} className="grid md:grid-cols-3 gap-3 bg-white p-5 rounded-2xl border">{(['name','email','phone','password'] as const).map((field) => <input key={field} required={field !== 'phone'} type={field === 'password' ? 'password' : field === 'email' ? 'email' : 'text'} placeholder={field[0].toUpperCase()+field.slice(1)} value={form[field]} onChange={(event) => setForm({ ...form, [field]: event.target.value })} className="border rounded-lg px-3 py-2 text-sm" />)}<select value={form.parkingLocationId} onChange={(event) => setForm({ ...form, parkingLocationId: event.target.value })} className="border rounded-lg px-3 py-2 text-sm"><option value="">No initial facility</option>{facilities.map((facility) => <option key={facility._id} value={facility._id}>{facility.name}</option>)}</select><button className="bg-indigo-600 text-white rounded-lg px-4 py-2 font-bold text-sm">Create Manager</button></form><div className="grid md:grid-cols-2 gap-4">{managers.map((manager) => <article key={manager._id} className="bg-white p-5 rounded-2xl border"><div className="flex justify-between"><div><h2 className="font-bold">{manager.name}</h2><p className="text-xs text-slate-500">{manager.email}{manager.phone ? ` · ${manager.phone}` : ''}</p></div><span className="text-xs font-bold text-emerald-700">{manager.isActive ? 'ACTIVE' : 'INACTIVE'}</span></div><label className="block mt-4 text-xs font-bold text-slate-500">Assigned parking facility</label><select value={manager.assignedParking[0]?._id ?? ''} onChange={async (event) => { await adminService.assignManager(manager._id, event.target.value); await load(); }} className="mt-1 w-full border rounded-lg px-3 py-2 text-sm"><option value="" disabled>Select facility</option>{facilities.map((facility) => <option key={facility._id} value={facility._id}>{facility.name}</option>)}</select></article>)}</div></div>;
 };

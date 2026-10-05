@@ -79,6 +79,7 @@ export const AppRoutes: React.FC = () => {
         <Route element={<MainLayout />}>
           <Route path="/dashboard" element={<DashboardPage />} />
           <Route path="/nearby" element={<NearbyParkingPage />} />
+          <Route path="/nearby-parking" element={<NearbyParkingPage />} />
           <Route path="/parking/:parkingId" element={<ParkingDetailPage />} />
           <Route path="/booking" element={<NewBookingPage />} />
           <Route path="/booking/:id" element={<BookingDetailPage />} />

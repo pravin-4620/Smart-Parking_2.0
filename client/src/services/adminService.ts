@@ -21,8 +21,33 @@ export const adminService = {
     return res.data.data;
   },
 
+  createManager: async (data: { name: string; email: string; phone?: string; password: string; parkingLocationId?: string }) => {
+    const res = await apiClient.post('/admin/managers', data);
+    return res.data.data;
+  },
+
   assignManager: async (userId: string, parkingLocationId: string) => {
-    const res = await apiClient.post('/admin/managers/assign', { userId, parkingLocationId });
+    const res = await apiClient.put(`/admin/managers/${userId}/assignment`, { parkingLocationId });
+    return res.data.data;
+  },
+
+  getParking: async () => {
+    const res = await apiClient.get('/admin/parking');
+    return res.data.data;
+  },
+
+  createParking: async (data: Record<string, unknown>) => {
+    const res = await apiClient.post('/admin/parking', data);
+    return res.data.data;
+  },
+
+  updateParking: async (id: string, data: Record<string, unknown>) => {
+    const res = await apiClient.patch(`/admin/parking/${id}`, data);
+    return res.data.data;
+  },
+
+  getDevices: async () => {
+    const res = await apiClient.get('/admin/devices');
     return res.data.data;
   },
 
@@ -40,5 +65,21 @@ export const adminService = {
     const res = await apiClient.get('/admin/audit');
     return res.data.data;
   },
+
+  getSlots: async (parkingLocationId?: string) => {
+    const res = await apiClient.get('/manager/slots', { params: { parkingLocationId } });
+    return res.data.data;
+  },
+
+  getParkingLocations: async () => {
+    const res = await apiClient.get('/admin/parking');
+    return res.data.data;
+  },
+
+  cancelReservation: async (reservationId: string) => {
+    const res = await apiClient.patch(`/manager/reservations/${reservationId}/cancel`);
+    return res.data.data;
+  },
 };
+
 

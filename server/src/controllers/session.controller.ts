@@ -9,7 +9,7 @@ export const getParkingSessions = async (req: AuthenticatedRequest, res: Respons
     const sessions = await ParkingSession.find({ userId: new Types.ObjectId(userId) })
       .populate('parkingLocationId', 'name address city')
       .populate('slotId', 'slotNumber slotType')
-      .sort({ entryTime: -1 });
+      .sort({ checkInTime: -1 });
 
     res.status(200).json({ data: sessions });
   } catch (err: any) {

@@ -8,6 +8,13 @@ export interface IUser extends Document {
   role: UserRole;
   phone?: string;
   isActive: boolean;
+  emailVerified: boolean;
+  emailVerificationToken?: string;
+  emailVerificationExpires?: Date;
+  mobileVerified: boolean;
+  mobileOtp?: string;
+  mobileOtpExpires?: Date;
+  mobileOtpAttempts?: number;
   createdAt: Date;
   updatedAt: Date;
 }
@@ -44,6 +51,30 @@ const userSchema = new Schema<IUser>(
     isActive: {
       type: Boolean,
       default: true,
+    },
+    emailVerified: {
+      type: Boolean,
+      default: false,
+    },
+    emailVerificationToken: {
+      type: String,
+    },
+    emailVerificationExpires: {
+      type: Date,
+    },
+    mobileVerified: {
+      type: Boolean,
+      default: false,
+    },
+    mobileOtp: {
+      type: String,
+    },
+    mobileOtpExpires: {
+      type: Date,
+    },
+    mobileOtpAttempts: {
+      type: Number,
+      default: 0,
     },
   },
   {

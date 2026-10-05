@@ -47,6 +47,8 @@ export const seedDatabase = async () => {
     role: UserRole.ADMIN,
     phone: '+919999900000',
     isActive: true,
+    emailVerified: true,
+    mobileVerified: true,
   });
 
   const managerUser = await User.create({
@@ -56,6 +58,8 @@ export const seedDatabase = async () => {
     role: UserRole.PARKING_MANAGER,
     phone: '+919888811111',
     isActive: true,
+    emailVerified: true,
+    mobileVerified: true,
   });
 
   const regularUser = await User.create({
@@ -65,6 +69,8 @@ export const seedDatabase = async () => {
     role: UserRole.USER,
     phone: '+919777722222',
     isActive: true,
+    emailVerified: true,
+    mobileVerified: true,
   });
 
   console.log('👤 Created Admin, Manager, and Standard Users.');

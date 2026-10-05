@@ -1,6 +1,11 @@
 import React, { createContext, useContext, useState, useEffect } from 'react';
 import { AuthResponse, UserRole } from '@smart-parking/shared';
-import { apiClient } from '../services/api';
+import {
+  apiClient,
+  AUTH_TOKEN_EVENT,
+  getStoredAccessToken,
+  setStoredAccessToken,
+} from '../services/api';
 import { getMeApi, logoutApi } from '../services/authService';
 
 interface AuthUser {
@@ -27,7 +32,7 @@ const AuthContext = createContext<AuthContextType | undefined>(undefined);
 export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
   const [user, setUser] = useState<AuthUser | null>(null);
   const [accessToken, setAccessToken] = useState<string | null>(
-    localStorage.getItem('accessToken')
+    getStoredAccessToken()
   );
   const [isLoading, setIsLoading] = useState<boolean>(true);
 
@@ -41,6 +46,14 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       localStorage.removeItem('accessToken');
     }
   }, [accessToken]);
+
+  useEffect(() => {
+    const handleTokenChange = (event: Event) => {
+      setAccessToken((event as CustomEvent<string | null>).detail);
+    };
+    window.addEventListener(AUTH_TOKEN_EVENT, handleTokenChange);
+    return () => window.removeEventListener(AUTH_TOKEN_EVENT, handleTokenChange);
+  }, []);
 
   // Check auth session on initial app load
   useEffect(() => {
@@ -61,6 +74,8 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   }, [accessToken]);
 
   const login = (authData: AuthResponse) => {
+    setStoredAccessToken(authData.accessToken);
+    apiClient.defaults.headers.common['Authorization'] = `Bearer ${authData.accessToken}`;
     setUser(authData.user);
     setAccessToken(authData.accessToken);
   };
@@ -71,6 +86,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     } catch {
       // ignore
     } finally {
+      setStoredAccessToken(null);
       setUser(null);
       setAccessToken(null);
     }

@@ -6,6 +6,7 @@ export interface IParkingSlot extends Document {
   slotNumber: string;
   status: SlotStatus;
   slotType: SlotType;
+  hourlyRateOverride?: number;
   sensorId?: string;
   deviceId?: Types.ObjectId;
   isActive: boolean;
@@ -41,6 +42,10 @@ const parkingSlotSchema = new Schema<IParkingSlot>(
       enum: Object.values(SlotType),
       default: SlotType.REGULAR,
       required: true,
+    },
+    hourlyRateOverride: {
+      type: Number,
+      min: 0,
     },
     sensorId: {
       type: String,

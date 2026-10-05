@@ -17,8 +17,10 @@ export const ManagerSessionsPage: React.FC = () => {
             <tr>
               <th className="p-3">Session ID</th>
               <th className="p-3">Status</th>
+              <th className="p-3">Slot</th>
               <th className="p-3">Check In</th>
               <th className="p-3">Check Out</th>
+              <th className="p-3">Duration</th>
             </tr>
           </thead>
           <tbody className="divide-y divide-slate-100">
@@ -26,8 +28,14 @@ export const ManagerSessionsPage: React.FC = () => {
               <tr key={s._id}>
                 <td className="p-3 font-mono font-bold">{s._id}</td>
                 <td className="p-3"><span className="px-2 py-0.5 bg-emerald-50 text-emerald-700 font-bold rounded">{s.status}</span></td>
+                <td className="p-3 font-bold">{s.slotId?.slotNumber ?? '—'}</td>
                 <td className="p-3">{new Date(s.checkInTime).toLocaleString()}</td>
                 <td className="p-3">{s.checkOutTime ? new Date(s.checkOutTime).toLocaleString() : 'In Session'}</td>
+                <td className="p-3">
+                  {s.status === 'COMPLETED' && typeof s.durationMinutes === 'number'
+                    ? `${s.durationMinutes} min`
+                    : 'In progress'}
+                </td>
               </tr>
             ))}
           </tbody>
@@ -36,4 +44,3 @@ export const ManagerSessionsPage: React.FC = () => {
     </div>
   );
 };
-

@@ -2,12 +2,14 @@ import mongoose, { Types } from 'mongoose';
 import { PricingProfile } from '../models/pricingProfile.model.js';
 import { PricingRule } from '../models/pricingRule.model.js';
 import { ParkingSlot } from '../models/parkingSlot.model.js';
+import { ParkingLocation } from '../models/parkingLocation.model.js';
 import {
   CalculatePricingInput,
   PricingCalculationResult,
   PricingBreakdownItem,
   PricingRuleType,
   SlotType,
+  UserRole,
 } from '@smart-parking/shared';
 
 // Round amount safely to 2 decimal places using integer arithmetic (paise)
@@ -27,15 +29,20 @@ const SLOT_TYPE_MULTIPLIERS: Record<string, number> = {
 export class PricingService {
   public static async calculatePricing(
     input: CalculatePricingInput
-  ): Promise<PricingCalculationResult> {
+  ): Promise<PricingCalculationResult & { effectiveHourlyRate: number }> {
     const { parkingLocationId, slotId, startTime, endTime } = input;
     let slotType = input.slotType || SlotType.REGULAR;
+    let slotHourlyRate: number | undefined;
 
     // Resolve slotType from database if slotId is provided
     if (slotId && mongoose.Types.ObjectId.isValid(slotId)) {
       const slot = await ParkingSlot.findById(slotId);
       if (slot) {
+        if (slot.parkingLocationId.toString() !== parkingLocationId) {
+          throw new Error('Selected slot does not belong to this parking facility');
+        }
         slotType = slot.slotType as SlotType;
+        slotHourlyRate = slot.hourlyRateOverride;
       }
     }
 
@@ -92,8 +99,11 @@ export class PricingService {
       const minutesOfDay = hourOfDay * 60 + currentSliceStart.getUTCMinutes();
       const isWeekend = dayOfWeek === 0 || dayOfWeek === 6;
 
-      let appliedRate = profile.baseHourlyRate;
-      let ruleDescription = `Base Hourly Rate (₹${profile.baseHourlyRate}/hr)`;
+      const effectiveHourlyRate = slotHourlyRate ?? profile.baseHourlyRate;
+      let appliedRate = effectiveHourlyRate;
+      let ruleDescription = slotHourlyRate !== undefined
+        ? `Slot Hourly Rate (₹${slotHourlyRate}/hr)`
+        : `Base Hourly Rate (₹${profile.baseHourlyRate}/hr)`;
       let isPeakSlice = false;
 
       // Check applicable rules by priority
@@ -104,7 +114,7 @@ export class PricingService {
           rule.daysOfWeek.includes(dayOfWeek);
 
         if (rule.ruleType === PricingRuleType.WEEKEND && isWeekend && dayMatches) {
-          appliedRate = profile.baseHourlyRate * rule.multiplier + rule.fixedFee;
+          appliedRate = effectiveHourlyRate * rule.multiplier + rule.fixedFee;
           ruleDescription = `Weekend Rate (${rule.ruleName}: ${rule.multiplier}x)`;
           break;
         }
@@ -122,12 +132,12 @@ export class PricingService {
 
           if (inTimeRange) {
             if (rule.ruleType === PricingRuleType.PEAK) {
-              appliedRate = profile.baseHourlyRate * rule.multiplier + rule.fixedFee;
+              appliedRate = effectiveHourlyRate * rule.multiplier + rule.fixedFee;
               ruleDescription = `Peak Period Rate (${rule.ruleName}: ${rule.multiplier}x)`;
               isPeakSlice = true;
               break;
             } else if (rule.ruleType === PricingRuleType.OFF_PEAK) {
-              appliedRate = profile.baseHourlyRate * rule.multiplier + rule.fixedFee;
+              appliedRate = effectiveHourlyRate * rule.multiplier + rule.fixedFee;
               ruleDescription = `Off-Peak Rate (${rule.ruleName}: ${rule.multiplier}x)`;
               break;
             }
@@ -160,6 +170,16 @@ export class PricingService {
       currentSliceStart = new Date(currentSliceStart.getTime() + 60 * 60 * 1000);
     }
 
+    const startingCharge = profile.basePrice ?? 0;
+    if (startingCharge > 0) {
+      baseAmountAccumulator += startingCharge;
+      breakdown.unshift({
+        description: 'Starting charge',
+        rate: startingCharge,
+        hours: 0,
+        amount: startingCharge,
+      });
+    }
     let subtotal = roundCurrency(baseAmountAccumulator + peakAmountAccumulator);
 
     // Apply Maximum Daily Charge (24-hour cap)
@@ -197,6 +217,7 @@ export class PricingService {
     const finalAmount = roundCurrency(subtotal);
 
     return {
+      effectiveHourlyRate: slotHourlyRate ?? profile.baseHourlyRate,
       baseAmount,
       peakAmount,
       discount,
@@ -208,5 +229,231 @@ export class PricingService {
       pricingRuleVersion: profile.version,
     };
   }
-}
 
+  public static async getPricingForLocation(
+    parkingLocationId: string,
+    userId: string,
+    role: UserRole
+  ) {
+    const location = await ParkingLocation.findById(parkingLocationId);
+    if (!location) {
+      const err: any = new Error('Parking facility not found');
+      err.statusCode = 404;
+      throw err;
+    }
+
+    if (role === UserRole.PARKING_MANAGER) {
+      const isAssigned = location.managerIds.some((id) => id.toString() === userId);
+      if (!isAssigned) {
+        const err: any = new Error('Forbidden: You are not a manager for this parking facility');
+        err.statusCode = 403;
+        throw err;
+      }
+    }
+
+    let profile = await PricingProfile.findOne({
+      parkingLocationId: new Types.ObjectId(parkingLocationId),
+      isActive: true,
+    });
+
+    if (!profile) {
+      profile = await PricingProfile.create({
+        parkingLocationId: new Types.ObjectId(parkingLocationId),
+        name: `${location.name} Standard Tariff`,
+        version: 1,
+        basePrice: 0,
+        baseHourlyRate: 50,
+        minimumCharge: 20,
+        maximumDailyCharge: 500,
+        isActive: true,
+      });
+      location.pricingProfileId = profile._id as Types.ObjectId;
+      await location.save();
+    }
+
+    const rules = await PricingRule.find({
+      pricingProfileId: profile._id,
+      isActive: true,
+    }).sort({ priority: -1 });
+
+    const slots = await ParkingSlot.find({ parkingLocationId }).sort({ slotNumber: 1 });
+
+    return {
+      location,
+      profile,
+      rules,
+      slots,
+      overstayConfig: location.overstayConfig || {
+        gracePeriodMinutes: 10,
+        fineIntervalMinutes: 15,
+        fineAmountPerInterval: 20,
+        maximumFineAmount: 500,
+      },
+    };
+  }
+
+  public static async updatePricingForLocation(
+    parkingLocationId: string,
+    data: {
+      basePrice?: number;
+      baseHourlyRate?: number;
+      minimumCharge?: number;
+      maximumDailyCharge?: number;
+      rules?: Array<{
+        ruleName: string;
+        ruleType: PricingRuleType;
+        multiplier: number;
+        fixedFee?: number;
+        startTime?: string;
+        endTime?: string;
+        daysOfWeek?: number[];
+        priority?: number;
+        isActive?: boolean;
+      }>;
+      overstayConfig?: {
+        gracePeriodMinutes: number;
+        fineIntervalMinutes: number;
+        fineAmountPerInterval: number;
+        maximumFineAmount: number;
+      };
+      slotPrices?: Array<{ slotId: string; hourlyRateOverride: number | null }>;
+    },
+    userId: string,
+    role: UserRole
+  ) {
+    const location = await ParkingLocation.findById(parkingLocationId);
+    if (!location) {
+      const err: any = new Error('Parking facility not found');
+      err.statusCode = 404;
+      throw err;
+    }
+
+    if (role === UserRole.PARKING_MANAGER) {
+      const isAssigned = location.managerIds.some((id) => id.toString() === userId);
+      if (!isAssigned) {
+        const err: any = new Error('Forbidden: You are not a manager for this parking facility');
+        err.statusCode = 403;
+        throw err;
+      }
+    } else if (role === UserRole.USER) {
+      const err: any = new Error('Forbidden: Normal users cannot update pricing');
+      err.statusCode = 403;
+      throw err;
+    }
+
+    if (data.baseHourlyRate !== undefined && data.baseHourlyRate < 0) {
+      throw new Error('baseHourlyRate cannot be negative');
+    }
+    if (data.basePrice !== undefined && data.basePrice < 0) {
+      throw new Error('basePrice cannot be negative');
+    }
+    if (data.minimumCharge !== undefined && data.minimumCharge < 0) {
+      throw new Error('minimumCharge cannot be negative');
+    }
+    if (data.maximumDailyCharge !== undefined && data.maximumDailyCharge < 0) {
+      throw new Error('maximumDailyCharge cannot be negative');
+    }
+
+    if (data.overstayConfig) {
+      const { gracePeriodMinutes, fineIntervalMinutes, fineAmountPerInterval, maximumFineAmount } =
+        data.overstayConfig;
+      if (gracePeriodMinutes < 0) throw new Error('gracePeriodMinutes cannot be negative');
+      if (fineIntervalMinutes <= 0) throw new Error('fineIntervalMinutes must be greater than 0');
+      if (fineAmountPerInterval < 0) throw new Error('fineAmountPerInterval cannot be negative');
+      if (maximumFineAmount < 0) throw new Error('maximumFineAmount cannot be negative');
+      if (maximumFineAmount < fineAmountPerInterval) {
+        throw new Error('maximumFineAmount must be greater than or equal to fineAmountPerInterval');
+      }
+
+      location.overstayConfig = {
+        gracePeriodMinutes,
+        fineIntervalMinutes,
+        fineAmountPerInterval,
+        maximumFineAmount,
+      };
+      await location.save();
+    }
+
+    let profile = await PricingProfile.findOne({
+      parkingLocationId: new Types.ObjectId(parkingLocationId),
+      isActive: true,
+    });
+
+    if (!profile) {
+      profile = await PricingProfile.create({
+        parkingLocationId: new Types.ObjectId(parkingLocationId),
+        name: `${location.name} Pricing Profile`,
+        version: 1,
+        basePrice: data.basePrice ?? 0,
+        baseHourlyRate: data.baseHourlyRate ?? 50,
+        minimumCharge: data.minimumCharge ?? 20,
+        maximumDailyCharge: data.maximumDailyCharge ?? 500,
+        isActive: true,
+      });
+      location.pricingProfileId = profile._id as Types.ObjectId;
+      await location.save();
+    } else {
+      if (data.basePrice !== undefined) profile.basePrice = data.basePrice;
+      if (data.baseHourlyRate !== undefined) profile.baseHourlyRate = data.baseHourlyRate;
+      if (data.minimumCharge !== undefined) profile.minimumCharge = data.minimumCharge;
+      if (data.maximumDailyCharge !== undefined) profile.maximumDailyCharge = data.maximumDailyCharge;
+      await profile.save();
+    }
+
+    if (Array.isArray(data.rules)) {
+      for (const rule of data.rules) {
+        if (rule.multiplier <= 0) throw new Error('Multiplier must be greater than 0');
+        if ((rule.fixedFee ?? 0) < 0) throw new Error('fixedFee cannot be negative');
+      }
+      await PricingRule.updateMany({ pricingProfileId: profile._id }, { $set: { isActive: false } });
+
+      for (const r of data.rules) {
+        await PricingRule.create({
+          pricingProfileId: profile._id,
+          ruleName: r.ruleName,
+          ruleType: r.ruleType,
+          multiplier: r.multiplier,
+          fixedFee: r.fixedFee ?? 0,
+          startTime: r.startTime,
+          endTime: r.endTime,
+          daysOfWeek: r.daysOfWeek ?? [],
+          priority: r.priority ?? 1,
+          isActive: r.isActive !== false,
+        });
+      }
+    }
+
+    if (Array.isArray(data.slotPrices)) {
+      for (const item of data.slotPrices) {
+        if (!Types.ObjectId.isValid(item.slotId)) throw new Error('Invalid slotId');
+        if (item.hourlyRateOverride !== null && item.hourlyRateOverride < 0) {
+          throw new Error('Slot hourly rate cannot be negative');
+        }
+      }
+      for (const item of data.slotPrices) {
+        const update = item.hourlyRateOverride === null
+          ? { $unset: { hourlyRateOverride: 1 } }
+          : { $set: { hourlyRateOverride: roundCurrency(item.hourlyRateOverride) } };
+        const result = await ParkingSlot.updateOne(
+          { _id: item.slotId, parkingLocationId: location._id },
+          update
+        );
+        if (result.matchedCount !== 1) throw new Error('Slot does not belong to this parking facility');
+      }
+    }
+
+    const updatedRules = await PricingRule.find({
+      pricingProfileId: profile._id,
+      isActive: true,
+    }).sort({ priority: -1 });
+    const slots = await ParkingSlot.find({ parkingLocationId }).sort({ slotNumber: 1 });
+
+    return {
+      location,
+      profile,
+      rules: updatedRules,
+      slots,
+      overstayConfig: location.overstayConfig,
+    };
+  }
+}

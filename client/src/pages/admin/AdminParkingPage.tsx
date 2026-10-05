@@ -1,26 +1,13 @@
-import React, { useState, useEffect } from 'react';
-import { parkingService } from '../../services/parkingService.js';
+import React, { useEffect, useState } from 'react';
+import { adminService } from '../../services/adminService.js';
 
+interface Slot { _id: string; slotNumber: string; status: string; slotType: string; sensorId?: string; }
+interface Facility { _id: string; name: string; address: string; city: string; geoLocation: { coordinates: [number, number] }; slots: Slot[]; devices: Array<{ _id: string; deviceId: string }>; managerIds: Array<{ _id: string; name: string }>; }
 export const AdminParkingPage: React.FC = () => {
-  const [parking, setParking] = useState<any[]>([]);
-
-  useEffect(() => {
-    parkingService.getNearbyParking({ lat: 12.9716, lng: 77.5946, radius: 100 }).then(setParking).catch(console.error);
-  }, []);
-
-  return (
-    <div className="p-6 max-w-7xl mx-auto space-y-6">
-      <h1 className="text-2xl font-bold text-slate-900">Global Parking Facilities Directory</h1>
-      <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-        {parking.map((p) => (
-          <div key={p.parkingId} className="bg-white p-5 rounded-2xl border border-slate-200 shadow-sm">
-            <h3 className="font-bold text-slate-900">{p.name}</h3>
-            <p className="text-xs text-slate-500">{p.address}</p>
-            <div className="mt-2 text-xs font-semibold text-emerald-600">Available: {p.availableSlots} / {p.totalSlots}</div>
-          </div>
-        ))}
-      </div>
-    </div>
-  );
+  const [parking, setParking] = useState<Facility[]>([]);
+  const [form, setForm] = useState({ name: '', address: '', city: '', state: '', postalCode: '', latitude: '', longitude: '', totalSlots: '3' });
+  const load = () => adminService.getParking().then(setParking);
+  useEffect(() => { load().catch(console.error); }, []);
+  const create = async (event: React.FormEvent) => { event.preventDefault(); await adminService.createParking({ ...form, latitude: Number(form.latitude), longitude: Number(form.longitude), totalSlots: Number(form.totalSlots) }); setForm({ name: '', address: '', city: '', state: '', postalCode: '', latitude: '', longitude: '', totalSlots: '3' }); await load(); };
+  return <div className="p-6 max-w-7xl mx-auto space-y-6"><div><h1 className="text-2xl font-bold">Parking Facilities</h1><p className="text-sm text-slate-500">Facilities, database-backed slots, managers, and IoT associations.</p></div><form onSubmit={create} className="grid md:grid-cols-4 gap-3 bg-white p-5 rounded-2xl border">{Object.keys(form).map((key) => <input key={key} required={['name','address','city','latitude','longitude','totalSlots'].includes(key)} type={['latitude','longitude','totalSlots'].includes(key) ? 'number' : 'text'} step={key === 'latitude' || key === 'longitude' ? 'any' : undefined} placeholder={key.replace(/([A-Z])/g, ' $1')} value={form[key as keyof typeof form]} onChange={(event) => setForm({ ...form, [key]: event.target.value })} className="border rounded-lg px-3 py-2 text-sm" />)}<button className="bg-indigo-600 text-white rounded-lg px-4 py-2 font-bold text-sm">Create Facility & Slots</button></form><div className="space-y-4">{parking.map((facility) => <article key={facility._id} className="bg-white p-5 rounded-2xl border"><div className="flex flex-wrap justify-between gap-2"><div><h2 className="font-bold text-lg">{facility.name}</h2><p className="text-xs text-slate-500">{facility.address}, {facility.city}</p><p className="text-xs text-slate-400">{facility.geoLocation.coordinates[1]}, {facility.geoLocation.coordinates[0]}</p></div><div className="text-xs text-right">Manager: <strong>{facility.managerIds.map((manager) => manager.name).join(', ') || 'Unassigned'}</strong><br />IoT devices: <strong>{facility.devices.length}</strong></div></div><div className="grid grid-cols-3 sm:grid-cols-6 lg:grid-cols-10 gap-2 mt-4">{facility.slots.map((slot) => <div key={slot._id} className="rounded-lg bg-slate-50 border p-2 text-center text-[10px]"><strong>{slot.slotNumber}</strong><span className="block">{slot.status}</span><span className="block text-slate-400">{slot.sensorId ?? slot.slotType}</span></div>)}</div></article>)}</div></div>;
 };
-

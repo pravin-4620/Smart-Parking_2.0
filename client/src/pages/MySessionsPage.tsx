@@ -77,13 +77,21 @@ export const MySessionsPage: React.FC = () => {
                 <div>
                   <span className="text-[10px] text-slate-400 font-bold uppercase block">Entry Time</span>
                   <span className="font-bold text-slate-800">
-                    {new Date(session.entryTime).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
+                    {new Date(session.checkInTime).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
                   </span>
                 </div>
                 <div>
                   <span className="text-[10px] text-slate-400 font-bold uppercase block">Exit Time</span>
                   <span className="font-bold text-slate-800">
-                    {session.exitTime ? new Date(session.exitTime).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) : 'Still Parked'}
+                    {session.checkOutTime ? new Date(session.checkOutTime).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) : 'Still Parked'}
+                  </span>
+                </div>
+                <div className="col-span-2">
+                  <span className="text-[10px] text-slate-400 font-bold uppercase block">Duration</span>
+                  <span className="font-bold text-slate-800">
+                    {session.status === 'COMPLETED' && typeof session.durationMinutes === 'number'
+                      ? `${session.durationMinutes} minutes`
+                      : 'In progress'}
                   </span>
                 </div>
               </div>

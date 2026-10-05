@@ -16,6 +16,7 @@ export const ManagerReservationsPage: React.FC = () => {
           <thead className="bg-slate-50 border-b font-bold text-slate-700">
             <tr>
               <th className="p-3">Reservation Code</th>
+              <th className="p-3">User / Slot</th>
               <th className="p-3">Status</th>
               <th className="p-3">Start Time</th>
               <th className="p-3">End Time</th>
@@ -26,10 +27,11 @@ export const ManagerReservationsPage: React.FC = () => {
             {reservations.map((r) => (
               <tr key={r._id}>
                 <td className="p-3 font-mono font-bold">{r.reservationCode}</td>
+                <td className="p-3"><span className="font-semibold">{r.userId?.name ?? 'User'}</span><span className="block text-slate-400">{r.slotId?.slotNumber ?? '—'}</span></td>
                 <td className="p-3"><span className="px-2 py-0.5 bg-indigo-50 text-indigo-700 font-bold rounded">{r.status}</span></td>
                 <td className="p-3">{new Date(r.startTime).toLocaleString()}</td>
                 <td className="p-3">{new Date(r.endTime).toLocaleString()}</td>
-                <td className="p-3 font-bold">₹{r.pricing?.finalAmount}</td>
+                <td className="p-3 font-bold">₹{r.pricingSnapshot?.totalAmount}</td>
               </tr>
             ))}
           </tbody>
@@ -38,4 +40,3 @@ export const ManagerReservationsPage: React.FC = () => {
     </div>
   );
 };
-

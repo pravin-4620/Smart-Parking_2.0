@@ -6,7 +6,7 @@ import { seedDatabase } from '../utils/seed.js';
 import { ParkingLocation } from '../models/parkingLocation.model.js';
 import { ParkingSlot } from '../models/parkingSlot.model.js';
 import { Reservation } from '../models/reservation.model.js';
-import { SlotType, ReservationStatus } from '@smart-parking/shared';
+import { SlotType, ReservationStatus, SlotStatus } from '@smart-parking/shared';
 
 const app = createApp();
 
@@ -175,12 +175,33 @@ describe('Phase 6: Reservation & Dynamic Slot Allocation Integration Tests', () 
 
     const reservationId = createRes.body.data._id;
 
+    await ParkingSlot.findByIdAndUpdate(targetSlotId, {
+      status: SlotStatus.RESERVED,
+      currentReservationId: reservationId,
+    });
+
     const cancelRes = await request(app)
       .patch(`/api/reservations/${reservationId}/cancel`)
       .set('Authorization', `Bearer ${userToken}`);
 
     expect(cancelRes.status).toBe(200);
     expect(cancelRes.body.data.status).toBe(ReservationStatus.CANCELLED);
+
+    const releasedSlot = await ParkingSlot.findById(targetSlotId).lean();
+    expect(releasedSlot!.status).toBe(SlotStatus.AVAILABLE);
+    expect(releasedSlot!.currentReservationId).toBeUndefined();
+
+    const replacementRes = await request(app)
+      .post('/api/reservations')
+      .set('Authorization', `Bearer ${userToken}`)
+      .send({
+        parkingLocationId,
+        slotId: targetSlotId,
+        startTime,
+        endTime,
+      });
+
+    expect(replacementRes.status).toBe(201);
   });
 
   it('7. Background expiration worker test', async () => {

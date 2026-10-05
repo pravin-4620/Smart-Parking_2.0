@@ -6,6 +6,7 @@ export interface IPricingProfile extends Document {
   description?: string;
   version: number;
   isActive: boolean;
+  basePrice: number;
   baseHourlyRate: number;
   minimumCharge: number;
   maximumDailyCharge: number;
@@ -39,6 +40,11 @@ const pricingProfileSchema = new Schema<IPricingProfile>(
       type: Boolean,
       default: true,
       index: true,
+    },
+    basePrice: {
+      type: Number,
+      default: 0,
+      min: 0,
     },
     baseHourlyRate: {
       type: Number,

@@ -80,7 +80,7 @@ export const DashboardPage: React.FC = () => {
 
   const loadNearby = async (lat: number, lng: number) => {
     try {
-      const res = await apiClient.get(`/parking/nearby?lat=${lat}&lng=${lng}&radius=10000`);
+      const res = await apiClient.get(`/parking/nearby?lat=${lat}&lng=${lng}&radius=10`);
       setNearbyParking(res.data.data || []);
     } catch (err) {
       console.error('Failed to load nearby parking:', err);
@@ -220,7 +220,7 @@ export const DashboardPage: React.FC = () => {
                   </div>
                   <p className="text-xs text-slate-500 mt-1 flex items-center gap-1">
                     <MapPin className="w-3.5 h-3.5 text-slate-400 shrink-0" />
-                    {parking.address} ({(parking.distance / 1000).toFixed(1)} km)
+                    {parking.address} ({parking.distance.toFixed(1)} km)
                   </p>
                 </div>
 

@@ -6,10 +6,12 @@ import {
   updateParkingLocation,
   deleteParkingLocation,
   getSlotsByLocation,
+  getAuthorizedSlotsByLocation,
   createParkingSlot,
   createBatchParkingSlots,
   updateParkingSlot,
 } from '../services/parking.service.js';
+
 import { ParkingLocation } from '../models/parkingLocation.model.js';
 import { AuthenticatedRequest } from '../middleware/auth.middleware.js';
 import { UserRole } from '@smart-parking/shared';
@@ -97,6 +99,42 @@ export const handleGetSlots = async (req: Request, res: Response) => {
     res.status(500).json({ error: 'Failed to fetch slots' });
   }
 };
+
+export const handleGetAuthorizedSlots = async (req: AuthenticatedRequest, res: Response) => {
+  try {
+    if (!req.user) {
+      return res.status(401).json({ error: 'Unauthorized' });
+    }
+
+    const { locationId } = req.params;
+    const location = await ParkingLocation.findById(locationId);
+    if (!location) {
+      return res.status(404).json({ error: 'Parking location not found' });
+    }
+
+    if (req.user.role === UserRole.PARKING_MANAGER) {
+      const isAssigned = location.managerIds.some(
+        (mId) => mId.toString() === req.user?.id || mId.toString() === req.user?.userId
+      );
+      if (!isAssigned) {
+        return res.status(403).json({
+          error: 'Forbidden: You are not assigned to manage this parking facility',
+        });
+      }
+    } else if (req.user.role !== UserRole.ADMIN) {
+      return res.status(403).json({ error: 'Forbidden: Access denied' });
+    }
+
+    const slots = await getAuthorizedSlotsByLocation([locationId]);
+    res.status(200).json({ count: slots.length, data: slots });
+  } catch (error) {
+    res.status(500).json({
+      error: 'Failed to fetch authorized slots',
+      message: (error as Error).message,
+    });
+  }
+};
+
 
 export const handleCreateSlot = async (req: AuthenticatedRequest, res: Response) => {
   try {

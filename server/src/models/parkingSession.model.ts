@@ -10,6 +10,7 @@ export interface IParkingSession extends Document {
   rfidCardId?: Types.ObjectId;
   checkInTime: Date;
   checkOutTime?: Date;
+  durationMinutes?: number;
   status: SessionStatus;
   overstayMinutes: number;
   overstayFee: number;
@@ -57,6 +58,10 @@ const parkingSessionSchema = new Schema<IParkingSession>(
     },
     checkOutTime: {
       type: Date,
+    },
+    durationMinutes: {
+      type: Number,
+      min: 0,
     },
     status: {
       type: String,

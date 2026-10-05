@@ -23,7 +23,7 @@ export const AdminPaymentsPage: React.FC = () => {
           <tbody className="divide-y divide-slate-100">
             {payments.map((p) => (
               <tr key={p._id}>
-                <td className="p-3 font-mono font-bold">{p.razorpayOrderId}</td>
+                <td className="p-3 font-mono font-bold">{p.orderId}</td>
                 <td className="p-3 font-bold">₹{p.amount}</td>
                 <td className="p-3"><span className="px-2 py-0.5 bg-emerald-50 text-emerald-700 font-bold rounded">{p.status}</span></td>
               </tr>
@@ -34,4 +34,3 @@ export const AdminPaymentsPage: React.FC = () => {
     </div>
   );
 };
-

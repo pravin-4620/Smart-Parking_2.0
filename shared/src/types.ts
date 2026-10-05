@@ -87,6 +87,49 @@ export interface NearbyParkingResponse {
   features: string[];
 }
 
+export interface AuthorizedPersonDetails {
+  id: string;
+  name: string;
+  email: string;
+  phone: string;
+}
+
+export interface AuthorizedVehicleDetails {
+  id: string;
+  licensePlate: string;
+  vehicleType: string;
+  make: string;
+  model: string;
+  color: string;
+}
+
+export interface AuthorizedSlotDetails {
+  _id: string;
+  parkingLocationId: string;
+  slotNumber: string;
+  status: SlotStatus;
+  slotType: string;
+  isActive: boolean;
+  sensorId?: string;
+  maintenanceReason?: string;
+  reservation: {
+    reservationId: string;
+    status: string;
+    startTime: string;
+    endTime: string;
+    duration: number;
+    customer: AuthorizedPersonDetails;
+    vehicle: AuthorizedVehicleDetails | null;
+  } | null;
+  activeSession: {
+    sessionId: string;
+    status: string;
+    checkInTime: string;
+    customer: AuthorizedPersonDetails;
+    vehicle: AuthorizedVehicleDetails | null;
+  } | null;
+}
+
 export interface PricingBreakdownItem {
   description: string;
   rate: number;
@@ -95,6 +138,7 @@ export interface PricingBreakdownItem {
 }
 
 export interface PricingCalculationResult {
+  effectiveHourlyRate: number;
   baseAmount: number;
   peakAmount: number;
   discount: number;

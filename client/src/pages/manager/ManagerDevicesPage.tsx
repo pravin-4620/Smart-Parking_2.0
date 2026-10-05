@@ -19,11 +19,11 @@ export const ManagerDevicesPage: React.FC = () => {
               <span className="px-2 py-0.5 bg-emerald-100 text-emerald-800 font-bold text-[10px] rounded-full">{d.status}</span>
             </div>
             <p className="text-xs text-slate-500">{d.name}</p>
-            <p className="text-[10px] text-slate-400 font-mono">Last Heartbeat: {new Date(d.lastHeartbeat).toLocaleString()}</p>
+            <p className="text-xs text-slate-500">{d.parkingLocationId?.name ?? 'Assigned facility'}</p>
+            <p className="text-[10px] text-slate-400 font-mono">Last Heartbeat: {d.lastHeartbeat ? new Date(d.lastHeartbeat).toLocaleString() : 'Not reported'}</p>
           </div>
         ))}
       </div>
     </div>
   );
 };
-

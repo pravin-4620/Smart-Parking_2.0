@@ -51,9 +51,15 @@ The physical device will need its AWS IoT endpoint, a unique client ID, CA certi
 
 The current simulator and backend accept a broker URL but do not yet configure mutual-TLS certificate paths. Adding AWS IoT mutual TLS is a future integration task, not an environment-only deployment step.
 
+For local development, MQTT ingestion automatically creates a device record when a simulator publishes a previously unseen `deviceId`, and it can resolve a missing assignment using the local fallback location. This keeps the simulator workflow frictionless. Production AWS IoT integration must replace that development behavior with explicit device enrollment and location assignment before accepting telemetry.
+
 ## Razorpay sandbox
 
 Keep the key secret and webhook secret only on the backend hosting platform. The backend may return the test key ID to the browser as part of an order response; the secret values must never be included in client code or `VITE_*` variables.
+
+## Google Maps browser configuration
+
+Set `VITE_GOOGLE_MAPS_API_KEY` for the Vite frontend locally and in Vercel. This browser-visible key is public configuration, not a server secret. Restrict it in Google Cloud Console to the Maps JavaScript API and the exact allowed HTTP referrers for local development and production. The Nearby Parking page continues to show facility cards if Maps fails to load or location permission is denied.
 
 ## IoT simulator
 

@@ -9,7 +9,7 @@ import crypto from 'crypto';
 
 export const register = async (req: Request, res: Response) => {
   try {
-    const { name, email, password, phone, role } = req.body as RegisterInput;
+    const { name, email, password, phone } = req.body as RegisterInput;
 
     const existingUser = await User.findOne({ email: email.toLowerCase() });
     if (existingUser) {
@@ -23,7 +23,7 @@ export const register = async (req: Request, res: Response) => {
       email: email.toLowerCase(),
       passwordHash,
       phone,
-      role: role || UserRole.USER,
+      role: UserRole.USER,
       isActive: true,
     });
 

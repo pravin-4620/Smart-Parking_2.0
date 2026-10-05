@@ -7,6 +7,7 @@ import {
   handleUpdateParkingLocation,
   handleDeleteParkingLocation,
   handleGetSlots,
+  handleGetAuthorizedSlots,
   handleCreateSlot,
   handleBatchCreateSlots,
   handleUpdateSlot,
@@ -56,6 +57,12 @@ router.delete(
 
 // Parking Slot management
 router.get('/parking-locations/:locationId/slots', handleGetSlots);
+router.get(
+  '/parking-locations/:locationId/slots/details',
+  authenticate,
+  authorize(UserRole.ADMIN, UserRole.PARKING_MANAGER),
+  handleGetAuthorizedSlots
+);
 
 router.post(
   '/parking-locations/:locationId/slots',

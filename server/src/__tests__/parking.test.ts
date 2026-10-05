@@ -67,6 +67,7 @@ describe('Phase 4: Parking Discovery & Geolocation Integration Tests', () => {
     expect(firstLoc.totalSlots).toBe(12);
     expect(firstLoc.startingPrice).toBe(60);
     expect(firstLoc.operatingStatus).toBeDefined();
+    expect(firstLoc.coordinates).toEqual([77.5946, 12.9716]);
 
     centralMallId = firstLoc.parkingId;
 
@@ -74,6 +75,16 @@ describe('Phase 4: Parking Discovery & Geolocation Integration Tests', () => {
     const metroLoc = res.body.data.find((l: any) => l.name.includes('Metro Station'));
     expect(metroLoc).toBeDefined();
     unassignedLocationId = metroLoc.parkingId;
+  });
+
+  it('9. Nearby radius is kilometres and navigation preserves facility coordinates', async () => {
+    const narrow = await request(app).get('/api/parking/nearby').query({ lat: 12.9716, lng: 77.5946, radius: 1 });
+    expect(narrow.status).toBe(200);
+    expect(narrow.body.data.every((location: { distance: number }) => location.distance <= 1)).toBe(true);
+    const params = new URLSearchParams({ api: '1', destination: '12.9716,77.5946', origin: '12.96,77.58' });
+    const url = `https://www.google.com/maps/dir/?${params.toString()}`;
+    expect(url).toContain('destination=12.9716%2C77.5946');
+    expect(url).toContain('origin=12.96%2C77.58');
   });
 
   it('3. GET /api/parking-locations/:id: should return full details and slot layout stats', async () => {

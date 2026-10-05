@@ -1,5 +1,7 @@
 import React, { useState } from 'react';
-import { Link, useLocation } from 'react-router-dom';
+import { Link, useLocation, useNavigate } from 'react-router-dom';
+import { UserRole } from '@smart-parking/shared';
+import { useAuth } from '../hooks/useAuth';
 import {
   Car,
   Compass,
@@ -12,13 +14,21 @@ import {
   Menu,
   X,
   Radio,
+  LogOut,
+  MapPinned,
+  Cpu,
+  Users,
+  DollarSign,
 } from 'lucide-react';
 
 export const Navbar: React.FC = () => {
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
+  const [isLoggingOut, setIsLoggingOut] = useState(false);
   const location = useLocation();
+  const navigate = useNavigate();
+  const { user, logout } = useAuth();
 
-  const navLinks = [
+  const userLinks = [
     { label: 'Dashboard', path: '/dashboard', icon: LayoutDashboard },
     { label: 'Nearby Parking', path: '/nearby', icon: Compass },
     { label: 'Book Slot', path: '/booking', icon: CalendarCheck },
@@ -30,12 +40,51 @@ export const Navbar: React.FC = () => {
     { label: 'Profile', path: '/profile', icon: User },
   ];
 
+  const managerLinks = [
+    { label: 'Dashboard', path: '/manager', icon: LayoutDashboard },
+    { label: 'My Parking', path: '/manager/parking', icon: MapPinned },
+    { label: 'Reservations', path: '/manager/reservations', icon: CalendarCheck },
+    { label: 'Parking Sessions', path: '/manager/sessions', icon: Radio },
+    { label: 'Pricing', path: '/manager/pricing', icon: DollarSign },
+    { label: 'IoT Devices', path: '/manager/devices', icon: Cpu },
+  ];
+
+  const adminLinks = [
+    { label: 'Dashboard', path: '/admin', icon: LayoutDashboard },
+    { label: 'Managers', path: '/admin/managers', icon: User },
+    { label: 'Parking Facilities', path: '/admin/parking', icon: MapPinned },
+    { label: 'Pricing', path: '/admin/pricing', icon: DollarSign },
+    { label: 'Users', path: '/admin/users', icon: Users },
+    { label: 'IoT Devices', path: '/admin/devices', icon: Cpu },
+    { label: 'Payments', path: '/admin/payments', icon: DollarSign },
+  ];
+
+  const navLinks =
+    user?.role === UserRole.ADMIN
+      ? adminLinks
+      : user?.role === UserRole.PARKING_MANAGER
+        ? managerLinks
+        : userLinks;
+
+  const homePath =
+    user?.role === UserRole.ADMIN
+      ? '/admin'
+      : user?.role === UserRole.PARKING_MANAGER
+        ? '/manager'
+        : '/dashboard';
+
+  const handleLogout = async () => {
+    setIsLoggingOut(true);
+    await logout();
+    navigate('/login', { replace: true });
+  };
+
   const isActive = (path: string) => location.pathname === path;
 
   return (
     <header className="bg-slate-900 text-white border-b border-slate-800 sticky top-0 z-40 shadow-md">
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 h-16 flex items-center justify-between">
-        <Link to="/dashboard" className="flex items-center space-x-3">
+        <Link to={homePath} className="flex items-center space-x-3">
           <div className="bg-indigo-600 p-2 rounded-xl text-white shadow-lg shadow-indigo-600/30">
             <Car className="w-6 h-6" />
           </div>
@@ -62,6 +111,15 @@ export const Navbar: React.FC = () => {
               </Link>
             );
           })}
+          <button
+            type="button"
+            onClick={handleLogout}
+            disabled={isLoggingOut}
+            className="px-3 py-2 rounded-lg text-xs font-semibold flex items-center gap-1.5 text-slate-300 hover:text-white hover:bg-slate-800 transition disabled:opacity-50"
+          >
+            <LogOut className="w-4 h-4" />
+            {isLoggingOut ? 'Signing Out...' : 'Logout'}
+          </button>
         </nav>
 
         {/* Mobile menu trigger */}
@@ -95,6 +153,18 @@ export const Navbar: React.FC = () => {
               </Link>
             );
           })}
+          <button
+            type="button"
+            onClick={async () => {
+              setMobileMenuOpen(false);
+              await handleLogout();
+            }}
+            disabled={isLoggingOut}
+            className="w-full flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm font-semibold text-slate-300 hover:text-white hover:bg-slate-800 transition disabled:opacity-50"
+          >
+            <LogOut className="w-5 h-5" />
+            {isLoggingOut ? 'Signing Out...' : 'Logout'}
+          </button>
         </div>
       )}
     </header>

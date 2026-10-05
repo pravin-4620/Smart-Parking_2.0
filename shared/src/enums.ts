@@ -44,8 +44,11 @@ export const ReservationStatusSchema = z.nativeEnum(ReservationStatus);
 export const PaymentStatus = {
   PENDING: 'PENDING',
   COMPLETED: 'COMPLETED',
+  PAID: 'PAID',
   FAILED: 'FAILED',
+  REFUND_PENDING: 'REFUND_PENDING',
   REFUNDED: 'REFUNDED',
+  REFUND_FAILED: 'REFUND_FAILED',
 } as const;
 export type PaymentStatus = (typeof PaymentStatus)[keyof typeof PaymentStatus];
 export const PaymentStatusSchema = z.nativeEnum(PaymentStatus);

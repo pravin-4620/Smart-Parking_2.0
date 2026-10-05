@@ -130,7 +130,7 @@ export class ReservationService {
         status: ReservationStatus.PENDING_PAYMENT,
         pricingSnapshot: {
           baseRate: pricingResult.baseAmount,
-          hourlyRate: location.pricingProfileId ? 50 : 60,
+          hourlyRate: pricingResult.effectiveHourlyRate,
           peakMultiplier: pricingResult.peakAmount > 0 ? 1.5 : 1.0,
           totalAmount: pricingResult.finalAmount,
           currency: pricingResult.currency,
@@ -241,8 +241,8 @@ export class ReservationService {
     // Reset ParkingSlot if it was marked reserved by this reservation
     if (reservation.slotId) {
       await ParkingSlot.findByIdAndUpdate(reservation.slotId, {
-        status: SlotStatus.AVAILABLE,
-        currentReservationId: undefined,
+        $set: { status: SlotStatus.AVAILABLE },
+        $unset: { currentReservationId: 1 },
       });
     }
 
