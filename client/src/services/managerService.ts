@@ -40,6 +40,10 @@ export const managerService = {
     const res = await apiClient.get('/manager/sessions', { params: { parkingLocationId } });
     return res.data.data;
   },
+  getFines: async () => {
+    const res = await apiClient.get('/manager/fines');
+    return res.data.data;
+  },
 
   getDevices: async (parkingLocationId?: string) => {
     const res = await apiClient.get('/manager/devices', { params: { parkingLocationId } });
@@ -63,6 +67,10 @@ export const managerService = {
 
   cancelReservation: async (reservationId: string) => {
     const res = await apiClient.patch(`/manager/reservations/${reservationId}/cancel`);
+    return res.data.data;
+  },
+  confirmReservation: async (reservationId: string) => {
+    const res = await apiClient.patch(`/manager/reservations/${reservationId}/confirm`);
     return res.data.data;
   },
 

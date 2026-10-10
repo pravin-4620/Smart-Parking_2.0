@@ -6,10 +6,13 @@ import { generateAccessToken, generateRefreshToken, verifyToken } from '../utils
 import { AuthenticatedRequest } from '../middleware/auth.middleware.js';
 import { RegisterInput, LoginInput, ForgotPasswordInput, ResetPasswordInput, UserRole } from '@smart-parking/shared';
 import crypto from 'crypto';
+import { Vehicle } from '../models/vehicle.model.js';
+import { RFIDInventoryService } from '../services/rfidInventory.service.js';
+import { VehicleType } from '@smart-parking/shared';
 
 export const register = async (req: Request, res: Response) => {
   try {
-    const { name, email, password, phone } = req.body as RegisterInput;
+    const { name, email, password, phone, vehicleRegistrationNumber } = req.body as RegisterInput;
 
     const existingUser = await User.findOne({ email: email.toLowerCase() });
     if (existingUser) {
@@ -18,6 +21,8 @@ export const register = async (req: Request, res: Response) => {
 
     const passwordHash = await hashPassword(password);
 
+    // Public registration is intentionally USER-only. Never derive this role
+    // from request data; privileged accounts use authenticated admin routes.
     const user = await User.create({
       name,
       email: email.toLowerCase(),
@@ -26,6 +31,20 @@ export const register = async (req: Request, res: Response) => {
       role: UserRole.USER,
       isActive: true,
     });
+
+    let vehicle;
+    try {
+      vehicle = await Vehicle.create({
+        userId: user._id,
+        licensePlate: vehicleRegistrationNumber,
+        vehicleType: VehicleType.CAR,
+        isDefault: true,
+      });
+    } catch (error) {
+      await User.deleteOne({ _id: user._id });
+      throw error;
+    }
+    const assignedCard = await RFIDInventoryService.claimForCustomer(user._id, vehicle._id as any);
 
     const accessToken = generateAccessToken({
       userId: user._id.toString(),
@@ -65,6 +84,10 @@ export const register = async (req: Request, res: Response) => {
       },
       accessToken,
       refreshToken,
+      vehicleRegistrationNumber: vehicle.licensePlate,
+      rfidAssignment: assignedCard
+        ? { status: 'ASSIGNED', uid: assignedCard.uid }
+        : { status: 'PENDING' },
     });
   } catch (error) {
     res.status(500).json({ error: 'Registration failed', message: (error as Error).message });
@@ -197,12 +220,14 @@ export const forgotPassword = async (req: Request, res: Response) => {
     // Generate password reset token
     const resetToken = crypto.randomBytes(32).toString('hex');
     const resetTokenHash = crypto.createHash('sha256').update(resetToken).digest('hex');
+    user.emailVerificationToken = resetTokenHash;
+    user.emailVerificationExpires = new Date(Date.now() + 30 * 60 * 1000);
+    await user.save();
 
-    // In a real email service, we'd send resetToken to user email.
-    // For now, return reset token in response for sandbox testing.
+    // A configured email provider must deliver the raw token. It is never
+    // returned to the browser or written to application logs.
     res.status(200).json({
-      message: 'Password reset token generated.',
-      resetToken: resetTokenHash,
+      message: 'If that email is registered, password reset instructions will be sent.',
     });
   } catch (error) {
     res.status(500).json({ error: 'Forgot password request failed' });
@@ -213,10 +238,15 @@ export const resetPassword = async (req: Request, res: Response) => {
   try {
     const { token, newPassword } = req.body as ResetPasswordInput;
 
-    // For test simplicity, token is passed directly or matched
+    const tokenHash = crypto.createHash('sha256').update(token).digest('hex');
+    const user = await User.findOne({ emailVerificationToken: tokenHash, emailVerificationExpires: { $gt: new Date() }, isActive: true });
+    if (!user) return res.status(400).json({ error: 'Invalid or expired password reset token' });
     const passwordHash = await hashPassword(newPassword);
-
-    // Revoke previous tokens
+    user.passwordHash = passwordHash;
+    user.emailVerificationToken = undefined;
+    user.emailVerificationExpires = undefined;
+    await user.save();
+    await RefreshToken.updateMany({ userId: user._id, isRevoked: false }, { $set: { isRevoked: true } });
     res.status(200).json({ message: 'Password has been reset successfully' });
   } catch (error) {
     res.status(500).json({ error: 'Password reset failed' });

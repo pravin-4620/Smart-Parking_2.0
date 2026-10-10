@@ -4,6 +4,7 @@ import mongoose from 'mongoose';
 import { createApp } from '../app.js';
 import { User } from '../models/user.model.js';
 import { UserRole } from '@smart-parking/shared';
+import { hashPassword } from '../utils/password.js';
 
 const app = createApp();
 
@@ -36,7 +37,7 @@ describe('Authentication & Role-Based Access Control Integration Tests', () => {
         email: 'user@example.com',
         password: 'password123',
         phone: '+919876543210',
-        role: UserRole.USER,
+        vehicleRegistrationNumber: 'KA01AB1234',
       });
 
     expect(res.status).toBe(201);
@@ -57,6 +58,7 @@ describe('Authentication & Role-Based Access Control Integration Tests', () => {
         name: 'Duplicate User',
         email: 'user@example.com',
         password: 'password123',
+        vehicleRegistrationNumber: 'KA01AB9999',
       });
 
     expect(res.status).toBe(400);
@@ -108,36 +110,30 @@ describe('Authentication & Role-Based Access Control Integration Tests', () => {
     expect(res.body.accessToken).toBeDefined();
   });
 
-  it('7. Public registration cannot self-assign privileged roles', async () => {
-    const managerRes = await request(app)
+  it.each([
+    ['PARKING_MANAGER', 'forged-manager@example.com'],
+    ['ADMIN', 'forged-admin@example.com'],
+    ['SYSTEM_ADMIN', 'forged-system-admin@example.com'],
+  ])('7. Public registration ignores forged role=%s and persists USER', async (role, email) => {
+    const res = await request(app)
       .post('/api/auth/register')
-      .send({
-        name: 'Parking Manager',
-        email: 'manager@example.com',
-        password: 'password123',
-        role: UserRole.PARKING_MANAGER,
-      });
+      .send({ name: 'Forged Privileged User', email, password: 'password123', vehicleRegistrationNumber: `KA01AB${role === 'ADMIN' ? '2002' : role === 'SYSTEM_ADMIN' ? '3003' : '1001'}`, role });
 
-    expect(managerRes.status).toBe(201);
-    expect(managerRes.body.user.role).toBe(UserRole.USER);
+    expect(res.status).toBe(201);
+    expect(res.body.user.role).toBe(UserRole.USER);
+    expect((await User.findOne({ email }))?.role).toBe(UserRole.USER);
+  });
 
-    // Register Admin
-    const adminRes = await request(app)
-      .post('/api/auth/register')
-      .send({
-        name: 'System Admin',
-        email: 'admin@example.com',
-        password: 'password123',
-        role: UserRole.ADMIN,
-      });
-
-    expect(adminRes.status).toBe(201);
-    expect(adminRes.body.user.role).toBe(UserRole.USER);
-
-    await User.updateOne({ email: 'manager@example.com' }, { role: UserRole.PARKING_MANAGER });
-    await User.updateOne({ email: 'admin@example.com' }, { role: UserRole.ADMIN });
+  it('8. Trusted privileged fixtures retain ADMIN and MANAGER access', async () => {
+    const passwordHash = await hashPassword('password123');
+    await User.create([
+      { name: 'Parking Manager', email: 'manager@example.com', passwordHash, role: UserRole.PARKING_MANAGER },
+      { name: 'System Admin', email: 'admin@example.com', passwordHash, role: UserRole.ADMIN },
+    ]);
     const managerLogin = await request(app).post('/api/auth/login').send({ email: 'manager@example.com', password: 'password123' });
     const adminLogin = await request(app).post('/api/auth/login').send({ email: 'admin@example.com', password: 'password123' });
+    expect(managerLogin.body.user.role).toBe(UserRole.PARKING_MANAGER);
+    expect(adminLogin.body.user.role).toBe(UserRole.ADMIN);
     managerToken = managerLogin.body.accessToken;
     adminToken = adminLogin.body.accessToken;
   });

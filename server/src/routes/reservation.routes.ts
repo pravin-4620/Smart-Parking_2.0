@@ -6,15 +6,16 @@ import {
   cancelReservation,
 } from '../controllers/reservation.controller.js';
 import { handleAutoAllocateSlot } from '../controllers/allocation.controller.js';
-import { authenticate } from '../middleware/auth.middleware.js';
+import { authenticate, authorize } from '../middleware/auth.middleware.js';
 import { validateRequest } from '../middleware/validate.middleware.js';
-import { createReservationSchema, autoAllocateSlotSchema } from '@smart-parking/shared';
+import { createReservationSchema, autoAllocateSlotSchema, UserRole } from '@smart-parking/shared';
 
 const router = Router();
 
 router.post(
   '/reservations',
   authenticate,
+  authorize(UserRole.USER),
   validateRequest(createReservationSchema),
   createReservation
 );
@@ -28,9 +29,9 @@ router.patch('/reservations/:id/cancel', authenticate, cancelReservation);
 router.post(
   '/allocation',
   authenticate,
+  authorize(UserRole.USER),
   validateRequest(autoAllocateSlotSchema),
   handleAutoAllocateSlot
 );
 
 export default router;
-

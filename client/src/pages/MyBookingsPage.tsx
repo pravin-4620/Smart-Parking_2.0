@@ -28,7 +28,7 @@ export const MyBookingsPage: React.FC = () => {
 
   const filteredBookings = bookings.filter((b) => {
     if (filterStatus === 'ALL') return true;
-    if (filterStatus === 'UPCOMING') return b.status === 'CONFIRMED' || b.status === 'PENDING_PAYMENT';
+    if (filterStatus === 'UPCOMING') return b.status === 'CONFIRMED' || b.status === 'PENDING_CONFIRMATION';
     return b.status === filterStatus;
   });
 
@@ -98,7 +98,7 @@ export const MyBookingsPage: React.FC = () => {
                     className={`px-2.5 py-0.5 rounded-full text-xs font-bold ${
                       b.status === 'CONFIRMED'
                         ? 'bg-emerald-50 text-emerald-700 border border-emerald-200'
-                        : b.status === 'PENDING_PAYMENT'
+                        : b.status === 'PENDING_CONFIRMATION'
                         ? 'bg-amber-50 text-amber-700 border border-amber-200'
                         : 'bg-slate-100 text-slate-600 border border-slate-200'
                     }`}

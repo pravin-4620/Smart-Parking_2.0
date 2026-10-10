@@ -26,9 +26,16 @@ Configure these on the backend service, not in Vercel's frontend project:
 | `JWT_SECRET` | Secret | Long, randomly generated signing secret |
 | `JWT_EXPIRES_IN` | Public configuration | Token lifetime such as `7d` |
 | `MQTT_BROKER_URL` | Potentially secret | MQTT/AWS IoT broker URL; treat it as secret if it embeds credentials |
+| `MQTT_USERNAME` / `MQTT_PASSWORD` | Secret | Backend credentials limited to telemetry reads and reservation-state command writes |
+| `IOT_ALLOW_AUTO_ENROLL` | Public configuration | Must remain `false` outside isolated tests |
+| `IOT_DEVICE_OFFLINE_AFTER_MS` | Public configuration | Heartbeat timeout before device and assigned occupancy become unavailable |
 | `RAZORPAY_KEY_ID` | Public identifier | Razorpay test key ID |
 | `RAZORPAY_KEY_SECRET` | Secret | Razorpay test key secret |
 | `RAZORPAY_WEBHOOK_SECRET` | Secret | Razorpay webhook signing secret |
+| `PAYMENT_TEST_MODE` | Public configuration | Must remain `false` outside isolated automated tests |
+| `REQUIRE_FINE_PAYMENT_BEFORE_EXIT` | Public configuration | Defaults to `true`; checkout remains blocked until a due fine is verified paid |
+| `RFID_ENTRY_EARLY_MINUTES` | Public configuration | Permitted early-entry window; defaults to 15 minutes |
+| `SENSOR_FRESHNESS_MS` | Public configuration | Maximum sensor age accepted for booking and physical exit verification |
 | `AWS_REGION` | Public configuration | AWS IoT Core region |
 | `AWS_IOT_ENDPOINT` | Public configuration | Account-specific AWS IoT data endpoint |
 | `AWS_IOT_CLIENT_ID` | Public configuration | Unique backend MQTT client ID |
@@ -49,18 +56,32 @@ Store the provider connection string only as the backend host's `REDIS_URL`. Use
 
 The physical device will need its AWS IoT endpoint, a unique client ID, CA certificate, device certificate, and device private key. Provision certificate files directly onto the device through a secure process. They are not frontend variables and must not be committed. The repository ignores common certificate and private-key file extensions and `certs/` directories.
 
-The current simulator and backend accept a broker URL but do not yet configure mutual-TLS certificate paths. Adding AWS IoT mutual TLS is a future integration task, not an environment-only deployment step.
+The backend supports username/password authentication for local Mosquitto and optional mutual-TLS certificate paths for a cloud broker. Runtime ingestion always requires an existing active device with an exact facility and slot assignment; there is no fallback facility or automatic enrollment.
 
-For local development, MQTT ingestion automatically creates a device record when a simulator publishes a previously unseen `deviceId`, and it can resolve a missing assignment using the local fallback location. This keeps the simulator workflow frictionless. Production AWS IoT integration must replace that development behavior with explicit device enrollment and location assignment before accepting telemetry.
+## Razorpay
 
-## Razorpay sandbox
+Keep the key secret and webhook secret only on the backend hosting platform. The backend creates real Razorpay orders, verifies checkout signatures using constant-time comparison, verifies webhooks against the raw request body, and processes duplicates idempotently. It may return the public key ID to the browser; secrets must never appear in client code or `VITE_*` variables. If credentials are absent, payment endpoints return service unavailable and never fabricate success. `PAYMENT_TEST_MODE=true` is accepted only under `NODE_ENV=test`.
 
-Keep the key secret and webhook secret only on the backend hosting platform. The backend may return the test key ID to the browser as part of an order response; the secret values must never be included in client code or `VITE_*` variables.
+Configure a Razorpay webhook for `/api/payments/webhook` with `payment.captured` and `payment.failed`. Reservation and fine amounts always come from backend snapshots.
+
+## First Admin bootstrap
+
+Public registration always creates a Customer. When no Admin exists, provision exactly one with this protected environment command. It refuses to run once an Admin exists and never prints the password:
+
+```bash
+ADMIN_BOOTSTRAP_CONFIRM=CREATE_FIRST_ADMIN \
+ADMIN_BOOTSTRAP_NAME='Platform Administrator' \
+ADMIN_BOOTSTRAP_EMAIL='admin@example.com' \
+ADMIN_BOOTSTRAP_PASSWORD='<a unique password of at least 12 characters>' \
+npm run bootstrap:admin --workspace=server
+```
+
+After bootstrap, Admins create and assign Managers through authenticated APIs. Sensitive role, account, and assignment changes are audit logged.
 
 ## Google Maps browser configuration
 
 Set `VITE_GOOGLE_MAPS_API_KEY` for the Vite frontend locally and in Vercel. This browser-visible key is public configuration, not a server secret. Restrict it in Google Cloud Console to the Maps JavaScript API and the exact allowed HTTP referrers for local development and production. The Nearby Parking page continues to show facility cards if Maps fails to load or location permission is denied.
 
-## IoT simulator
+## Test-only MQTT publisher
 
-Copy `iot-simulator/.env.example` to `iot-simulator/.env` for simulator-only settings. `PARKING_ID`, `DEVICE_ID`, `SLOT_ID`, and `OCCUPIED` describe the simulated event. `MQTT_BROKER_URL` selects the broker and may be sensitive if credentials are embedded in it.
+The `iot-simulator` workspace is retained only for isolated automated testing. It refuses to run unless `NODE_ENV=test`, `IOT_TEST_SIMULATOR_ENABLED=true`, and a separate `IOT_TEST_BROKER_URL` are supplied. Never configure it with the live facility or broker.

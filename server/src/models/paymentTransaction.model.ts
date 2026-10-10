@@ -3,7 +3,9 @@ import { PaymentStatus } from '@smart-parking/shared';
 
 export interface IPaymentTransaction extends Document {
   userId: Types.ObjectId;
-  reservationId: Types.ObjectId;
+  reservationId?: Types.ObjectId;
+  fineId?: Types.ObjectId;
+  purpose: 'RESERVATION' | 'OVERSTAY_FINE';
   gateway: string;
   orderId: string;
   paymentId?: string;
@@ -26,9 +28,10 @@ const paymentTransactionSchema = new Schema<IPaymentTransaction>(
     reservationId: {
       type: Schema.Types.ObjectId,
       ref: 'Reservation',
-      required: true,
       index: true,
     },
+    fineId: { type: Schema.Types.ObjectId, ref: 'OverstayFine', index: true },
+    purpose: { type: String, enum: ['RESERVATION', 'OVERSTAY_FINE'], required: true, default: 'RESERVATION', index: true },
     gateway: {
       type: String,
       default: 'RAZORPAY_SANDBOX',

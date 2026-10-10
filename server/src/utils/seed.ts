@@ -10,6 +10,7 @@ import { RFIDCard } from '../models/rfidCard.model.js';
 import { RFIDEvent } from '../models/rfidEvent.model.js';
 import { ParkingSession } from '../models/parkingSession.model.js';
 import { PaymentTransaction } from '../models/paymentTransaction.model.js';
+import { IoTDevice } from '../models/ioTDevice.model.js';
 import { hashPassword } from './password.js';
 import { UserRole, SlotStatus, SlotType, ParkingStatus, PricingRuleType } from '@smart-parking/shared';
 import { connectDatabase } from '../config/database.js';
@@ -20,6 +21,11 @@ export const seedDatabase = async () => {
   // Ensure DB connection
   if (mongoose.connection.readyState === 0) {
     await connectDatabase();
+  }
+
+  const databaseName = mongoose.connection.db?.databaseName;
+  if (process.env.NODE_ENV !== 'test' || !databaseName?.endsWith('_test')) {
+    throw new Error('Demo seed data is restricted to an isolated *_test database with NODE_ENV=test');
   }
 
   // Clear existing collections
@@ -34,6 +40,7 @@ export const seedDatabase = async () => {
   await RFIDEvent.deleteMany({});
   await ParkingSession.deleteMany({});
   await PaymentTransaction.deleteMany({});
+  await IoTDevice.deleteMany({});
 
   console.log('🧹 Cleaned existing database records.');
 

@@ -33,7 +33,7 @@ export class AllocationService {
       parkingLocationId: new Types.ObjectId(parkingLocationId),
       slotType,
       isActive: true,
-      status: { $in: [SlotStatus.AVAILABLE, SlotStatus.RESERVED] },
+      status: SlotStatus.AVAILABLE,
     });
 
     if (candidateSlots.length === 0) {
@@ -44,9 +44,11 @@ export class AllocationService {
     const candidateSlotIds = candidateSlots.map((s) => s._id);
 
     const activeStatuses = [
+      ReservationStatus.PENDING_CONFIRMATION,
       ReservationStatus.PENDING_PAYMENT,
       ReservationStatus.CONFIRMED,
       ReservationStatus.ACTIVE,
+      ReservationStatus.PAYMENT_FAILED,
     ];
 
     const overlappingReservations = await Reservation.find({

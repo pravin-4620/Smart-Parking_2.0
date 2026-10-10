@@ -1,9 +1,12 @@
 import mongoose, { Schema, Document, Model, Types } from 'mongoose';
 
 export interface IRFIDCard extends Document {
-  userId: Types.ObjectId;
+  userId?: Types.ObjectId;
+  vehicleId?: Types.ObjectId;
   uid: string;
   isActive: boolean;
+  assignedAt?: Date;
+  releasedAt?: Date;
   createdAt: Date;
   updatedAt: Date;
 }
@@ -13,9 +16,9 @@ const rfidCardSchema = new Schema<IRFIDCard>(
     userId: {
       type: Schema.Types.ObjectId,
       ref: 'User',
-      required: true,
       index: true,
     },
+    vehicleId: { type: Schema.Types.ObjectId, ref: 'Vehicle', index: true },
     uid: {
       type: String,
       required: true,
@@ -28,6 +31,8 @@ const rfidCardSchema = new Schema<IRFIDCard>(
       type: Boolean,
       default: true,
     },
+    assignedAt: Date,
+    releasedAt: Date,
   },
   {
     timestamps: true,

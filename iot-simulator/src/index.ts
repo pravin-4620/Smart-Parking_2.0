@@ -2,14 +2,18 @@ import 'dotenv/config';
 import mqtt from 'mqtt';
 import { IoTTelemetryPayload } from '@smart-parking/shared';
 
-const brokerUrl = process.env.MQTT_BROKER_URL || 'mqtt://localhost:1883';
+if (process.env.NODE_ENV !== 'test' || process.env.IOT_TEST_SIMULATOR_ENABLED !== 'true') {
+  throw new Error('The MQTT publisher is restricted to explicitly enabled test environments');
+}
+
+const brokerUrl = process.env.IOT_TEST_BROKER_URL;
 const parkingId = process.env.PARKING_ID || process.argv[2];
-const deviceId = process.env.DEVICE_ID || 'ESP32-001';
+const deviceId = process.env.DEVICE_ID || 'test-device-01';
 const slotId = process.env.SLOT_ID || process.argv[3];
 const occupiedArg = process.env.OCCUPIED || process.argv[4];
 
-if (!parkingId || !slotId || !['true', 'false'].includes(occupiedArg || '')) {
-  console.error('Usage: npm run dev --workspace=iot-simulator -- <parkingId> <slotId> <true|false>');
+if (!brokerUrl || !parkingId || !slotId || !['true', 'false'].includes(occupiedArg || '')) {
+  console.error('Set IOT_TEST_BROKER_URL and pass <parkingId> <slotId> <true|false>');
   process.exit(1);
 }
 

@@ -18,6 +18,7 @@ export const ParkingDetailPage: React.FC = () => {
     leaveParkingRoom,
     subscribeToSlotUpdated,
     subscribeToParkingUpdated,
+    subscribeToReservationUpdated,
   } = useSocket();
 
   useEffect(() => {
@@ -31,13 +32,7 @@ export const ParkingDetailPage: React.FC = () => {
 
     const unsubSlot = subscribeToSlotUpdated((data) => {
       if (data.parkingLocationId === parkingId || !data.parkingLocationId) {
-        setSlots((prevSlots) =>
-          prevSlots.map((s) =>
-            s._id === data.slotId || s.slotNumber === data.slotNumber
-              ? { ...s, status: data.status }
-              : s
-          )
-        );
+        void fetchParkingDetail();
       }
     });
 
@@ -49,16 +44,22 @@ export const ParkingDetailPage: React.FC = () => {
                 ...prevLoc,
                 totalSlots: data.totalSlots ?? prevLoc.totalSlots,
                 availableSlots: data.availableSlots ?? prevLoc.availableSlots,
-                occupancy: data.occupancyRate ?? prevLoc.occupancy,
+                occupancy: data.occupancyRate,
+                unknownSlots: data.unknownSlots,
               }
             : prevLoc
         );
       }
     });
 
+    const unsubReservation = subscribeToReservationUpdated((data) => {
+      if (data.parkingLocationId === parkingId) void fetchParkingDetail();
+    });
+
     return () => {
       unsubSlot();
       unsubParking();
+      unsubReservation();
       leaveParkingRoom(parkingId);
     };
   }, [parkingId]);
@@ -176,6 +177,7 @@ export const ParkingDetailPage: React.FC = () => {
             <span className="flex items-center gap-1.5"><span className="w-3 h-3 bg-emerald-500 rounded-full"></span> Available</span>
             <span className="flex items-center gap-1.5"><span className="w-3 h-3 bg-rose-500 rounded-full"></span> Occupied</span>
             <span className="flex items-center gap-1.5"><span className="w-3 h-3 bg-indigo-500 rounded-full"></span> Reserved</span>
+            <span className="flex items-center gap-1.5"><span className="w-3 h-3 bg-slate-400 rounded-full"></span> Unknown</span>
           </div>
         </div>
 
@@ -188,16 +190,18 @@ export const ParkingDetailPage: React.FC = () => {
                 key={slot._id}
                 data-status={slot.status}
                 onClick={() => {
-                  if (slot.status === 'AVAILABLE') {
+                  if (slot.available === true) {
                     navigate(`/booking?parkingId=${location._id}&slotId=${slot._id}`);
                   }
                 }}
                 className={`slot-tile p-4 rounded-xl border text-center transition cursor-pointer ${
-                  slot.status === 'AVAILABLE'
+                  slot.available === true
                     ? 'bg-emerald-50/50 border-emerald-300 hover:bg-emerald-100/60'
                     : slot.status === 'OCCUPIED'
                     ? 'bg-rose-50/50 border-rose-200 opacity-70 cursor-not-allowed'
-                    : 'bg-indigo-50/50 border-indigo-200 opacity-80 cursor-not-allowed'
+                    : slot.status === 'RESERVED'
+                    ? 'bg-indigo-50/50 border-indigo-200 opacity-80 cursor-not-allowed'
+                    : 'bg-slate-100 border-slate-300 opacity-80 cursor-not-allowed'
                 }`}
               >
                 <span className="text-xs font-mono text-slate-400 block font-bold">SLOT</span>
@@ -205,14 +209,21 @@ export const ParkingDetailPage: React.FC = () => {
                 <span className="slot-type">{slot.slotType?.replaceAll("_", " ")}</span>
                 <span
                   className={`text-[10px] font-extrabold uppercase px-2 py-0.5 rounded-full inline-block ${
-                    slot.status === 'AVAILABLE'
+                    slot.available === true
                       ? 'bg-emerald-200 text-emerald-800'
                       : slot.status === 'OCCUPIED'
                       ? 'bg-rose-200 text-rose-800'
-                      : 'bg-indigo-200 text-indigo-800'
+                      : slot.status === 'RESERVED'
+                      ? 'bg-indigo-200 text-indigo-800'
+                      : 'bg-slate-200 text-slate-700'
                   }`}
                 >
                   {slot.status}
+                </span>
+                <span className="mt-2 block text-[10px] leading-4 text-slate-500">
+                  Physical: {slot.physicalStatus ?? 'UNKNOWN'}<br />
+                  Reservation: {slot.reservationStatus ?? 'UNRESERVED'}<br />
+                  Device: {slot.deviceStatus ?? 'OFFLINE'}
                 </span>
               </div>
             ))}

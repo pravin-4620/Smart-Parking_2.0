@@ -9,8 +9,13 @@
     "typecheck": "tsc --noEmit",
     "start": "node dist/server.js",
     "dev": "tsx watch src/server.ts",
-    "test": "vitest run --fileParallelism=false",
-    "seed": "tsx src/utils/seed.ts"
+    "test": "NODE_ENV=test LOCAL_DEMO_AUTO_CONFIRM=false MONGODB_URI=mongodb://127.0.0.1:27017/smart_parking_test vitest run --fileParallelism=false",
+    "test:seed": "NODE_ENV=test MONGODB_URI=mongodb://localhost:27017/smart_parking_test tsx src/utils/seed.ts"
+    ,"bootstrap:admin": "tsx src/scripts/bootstrapAdmin.ts",
+    "bootstrap:managers": "tsx src/scripts/bootstrapManagers.ts",
+    "bootstrap:rfid": "tsx src/scripts/bootstrapRfidInventory.ts",
+    "password-reset:local": "tsx src/scripts/createLocalPasswordReset.ts",
+    "migrate:active-session-index": "tsx src/scripts/migrateActiveSessionIndex.ts"
   },
   "dependencies": {
     "@smart-parking/shared": "*",

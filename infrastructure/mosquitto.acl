@@ -1,0 +1,14 @@
+user smart-parking-backend
+topic read parking/+/device/+/+
+topic write parking/+/device/+/state
+topic write parking/+/device/+/rfid-result
+topic read $SYS/#
+
+user parking-esp32-01
+topic write parking/6ac8b8c9354a1ba2d42a8fdc/device/parking-esp32-01/occupancy
+topic write parking/6ac8b8c9354a1ba2d42a8fdc/device/parking-esp32-01/heartbeat
+topic write parking/6ac8b8c9354a1ba2d42a8fdc/device/parking-esp32-01/rfid
+topic write parking/6ac8b8c9354a1ba2d42a8fdc/device/parking-esp32-01/availability
+topic read parking/6ac8b8c9354a1ba2d42a8fdc/device/parking-esp32-01/state
+topic read parking/6ac8b8c9354a1ba2d42a8fdc/device/parking-esp32-01/rfid-result
+topic write parking/6ac8b8c9354a1ba2d42a8fdc/device/parking-esp32-01/state-ack

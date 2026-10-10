@@ -86,7 +86,7 @@ describe('Phase 9: Manager & Admin Portal Integration Tests', () => {
     const location = await ParkingLocation.findOne({ name: /Metro Station/ });
     const createRes = await request(app).post('/api/admin/managers')
       .set('Authorization', `Bearer ${adminToken}`)
-      .send({ name: 'North Zone Manager', email: 'north.manager@example.com', phone: '+919999999999', password: 'password123', parkingLocationId: location!._id.toString() });
+      .send({ name: 'North Zone Manager', email: 'north.manager@example.com', phone: '+919999999999', password: 'test-password-123', parkingLocationId: location!._id.toString() });
     expect(createRes.status).toBe(201);
     expect(createRes.body.data.role).toBe('PARKING_MANAGER');
     const updated = await ParkingLocation.findById(location!._id);
@@ -175,7 +175,7 @@ describe('Phase 9: Manager & Admin Portal Integration Tests', () => {
     expect(overstay.status).toBe(400);
   });
 
-  it('15. Existing reservation keeps its snapshot while a new reservation and payment use the updated slot price', async () => {
+  it('15. Existing reservation keeps its snapshot while a new no-payment reservation uses the updated slot price', async () => {
     const assigned = await ParkingLocation.findOne({ name: /Central Mall/ });
     const slot = await ParkingSlot.findOne({ parkingLocationId: assigned!._id, slotType: 'REGULAR', status: 'AVAILABLE' });
     await request(app).put(`/api/pricing/location/${assigned!._id}`)
@@ -195,8 +195,6 @@ describe('Phase 9: Manager & Admin Portal Integration Tests', () => {
     expect(newReservation.status).toBe(201);
     expect(newReservation.body.data.pricingSnapshot.hourlyRate).toBe(150);
     expect(newReservation.body.data.pricingSnapshot.totalAmount).toBe(150);
-    const order = await request(app).post('/api/payments/create-order').set('Authorization', `Bearer ${userToken}`).send({ reservationId: newReservation.body.data._id });
-    expect(order.status).toBe(201);
-    expect(order.body.data.amount).toBe(15000);
+    expect(newReservation.body.data.status).toBe('PENDING_CONFIRMATION');
   });
 });

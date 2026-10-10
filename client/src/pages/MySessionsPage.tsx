@@ -26,6 +26,7 @@ export const MySessionsPage: React.FC = () => {
   return (
     <div className="space-y-6">
       <PageHeader eyebrow="Your parking activity" title="Your parking sessions" description="Your arrivals, departures, and time spent parked." />
+      <div className="rounded-xl border border-amber-200 bg-amber-50 p-3 text-sm text-amber-800">Overstay fines are settled by an authorized facility operator. Online payment is not enabled.</div>
 
       {loading ? (
         <div className="min-h-[40vh] flex items-center justify-center">
@@ -89,6 +90,15 @@ export const MySessionsPage: React.FC = () => {
                   </span>
                 </div>
               </div>
+              {session.fine && (
+                <div className="rounded-xl border border-amber-200 bg-amber-50 p-3 text-xs text-amber-900">
+                  <div className="font-bold">Fine {session.fine.status}: ₹{session.fine.amount}</div>
+                  <div>{session.fine.overstayMinutes} overstay minutes</div>
+                  {['DUE', 'PAYMENT_PENDING'].includes(session.fine.status) && (
+                    <div className="mt-2 font-semibold">Settlement requires an authorized facility operator; checkout remains blocked.</div>
+                  )}
+                </div>
+              )}
             </div>
           ))}
         </div>

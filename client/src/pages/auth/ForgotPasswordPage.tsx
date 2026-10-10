@@ -7,7 +7,6 @@ import { Mail, AlertCircle, CheckCircle } from 'lucide-react';
 export const ForgotPasswordPage: React.FC = () => {
   const [email, setEmail] = useState('');
   const [message, setMessage] = useState<string | null>(null);
-  const [resetToken, setResetToken] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [isLoading, setIsLoading] = useState(false);
 
@@ -20,9 +19,6 @@ export const ForgotPasswordPage: React.FC = () => {
     try {
       const res = await forgotPasswordApi({ email });
       setMessage(res.message);
-      if ('resetToken' in res && typeof res.resetToken === 'string') {
-        setResetToken(res.resetToken);
-      }
     } catch {
       setError('Request failed. Please try again.');
     } finally {
@@ -51,17 +47,6 @@ export const ForgotPasswordPage: React.FC = () => {
         </div>
       )}
 
-      {resetToken && (
-        <div className="mb-4 p-3 bg-slate-100 border border-slate-300 text-xs rounded-lg font-mono break-all">
-          <strong>Sandbox Token:</strong> {resetToken}
-          <div className="mt-2 text-sky-600 font-sans">
-            <Link to={`/reset-password?token=${resetToken}`} className="underline font-semibold">
-              Click here to Reset Password
-            </Link>
-          </div>
-        </div>
-      )}
-
       <form onSubmit={handleSubmit} className="space-y-4">
         <div>
           <label className="block text-xs font-semibold text-slate-700 uppercase mb-1">Email Address</label>
@@ -83,7 +68,7 @@ export const ForgotPasswordPage: React.FC = () => {
           disabled={isLoading}
           className="w-full bg-sky-600 text-white font-medium py-2.5 rounded-lg hover:bg-sky-700 transition-colors text-sm disabled:opacity-50"
         >
-          {isLoading ? 'Generating Link...' : 'Generate Reset Link'}
+          {isLoading ? 'Submitting...' : 'Send Reset Instructions'}
         </button>
       </form>
 

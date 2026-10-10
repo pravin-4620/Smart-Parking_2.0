@@ -55,7 +55,7 @@ export const listReservations = async (req: AuthenticatedRequest, res: Response)
 
     res.status(200).json(result);
   } catch (error: any) {
-    res.status(500).json({ error: 'Failed to list reservations', message: error.message });
+    res.status(error.statusCode || 500).json({ error: 'Failed to list reservations', message: error.message });
   }
 };
 

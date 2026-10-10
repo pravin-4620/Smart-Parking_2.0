@@ -2,6 +2,7 @@ import { BookingSteps, PageHeader } from '../components/ui/MobilityUI';
 import React, { useState, useEffect } from 'react';
 import { useNavigate, useSearchParams } from 'react-router-dom';
 import { apiClient } from '../services/api.js';
+import { joinParkingRoom, leaveParkingRoom, subscribeToReservationUpdated, subscribeToSlotUpdated } from '../services/socket.js';
 import { SlotType, PricingCalculationResult } from '@smart-parking/shared';
 import { CalendarCheck, ShieldCheck, ArrowRight, Loader2, AlertCircle, Sparkles } from 'lucide-react';
 
@@ -20,7 +21,11 @@ export const NewBookingPage: React.FC = () => {
   const [slotType, setSlotType] = useState<SlotType>(SlotType.REGULAR);
 
   // Time & Duration
-  const nowISO = new Date(Date.now() + 5 * 60 * 1000).toISOString().slice(0, 16);
+  const toLocalDateTimeInput = (date: Date) => {
+    const offsetMs = date.getTimezoneOffset() * 60_000;
+    return new Date(date.getTime() - offsetMs).toISOString().slice(0, 16);
+  };
+  const nowISO = toLocalDateTimeInput(new Date(Date.now() + 5 * 60 * 1000));
   const [startTime, setStartTime] = useState(nowISO);
   const [durationHours, setDurationHours] = useState(2);
 
@@ -38,6 +43,21 @@ export const NewBookingPage: React.FC = () => {
     if (selectedParkingId) {
       fetchSlots(selectedParkingId);
     }
+  }, [selectedParkingId]);
+
+  useEffect(() => {
+    if (!selectedParkingId) return;
+    joinParkingRoom(selectedParkingId);
+    const refresh = (data: { parkingLocationId?: string }) => {
+      if (data.parkingLocationId === selectedParkingId) void fetchSlots(selectedParkingId);
+    };
+    const unsubscribeSlot = subscribeToSlotUpdated(refresh);
+    const unsubscribeReservation = subscribeToReservationUpdated(refresh);
+    return () => {
+      unsubscribeSlot();
+      unsubscribeReservation();
+      leaveParkingRoom(selectedParkingId);
+    };
   }, [selectedParkingId]);
 
   useEffect(() => {
@@ -63,7 +83,7 @@ export const NewBookingPage: React.FC = () => {
     try {
       const res = await apiClient.get(`/parking-locations/${locationId}/slots`);
       const list = res.data.data || [];
-      setSlots(list.filter((s: any) => s.status === 'AVAILABLE'));
+      setSlots(list.filter((s: any) => s.available === true));
     } catch (err) {
       console.error('Failed to load slots:', err);
     }
@@ -119,8 +139,7 @@ export const NewBookingPage: React.FC = () => {
       const res = await apiClient.post('/reservations', payload);
       const reservationId = res.data.data._id;
 
-      // Redirect directly to checkout
-      navigate(`/checkout/${reservationId}`);
+      navigate(`/booking/${reservationId}`);
     } catch (err: any) {
       setError(err.response?.data?.message || 'Reservation failed');
     } finally {
@@ -130,7 +149,7 @@ export const NewBookingPage: React.FC = () => {
 
   return (
     <div className="booking-page space-y-6">
-      <PageHeader eyebrow="Make room for your plans" title="Reserve your parking" description="Choose where and when. Review your price before you pay." />
+      <PageHeader eyebrow="Make room for your plans" title="Reserve your parking" description="Choose where and when. A facility manager confirms the reservation; no online payment is collected." />
       <BookingSteps current={0} />
       <div className="booking-form-panel bg-white p-6 sm:p-8 rounded-2xl border border-slate-200 shadow-sm space-y-6">
         <div>

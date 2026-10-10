@@ -1,280 +1,159 @@
-import { Types } from 'mongoose';
-import { IoTDevice } from '../models/ioTDevice.model.js';
-import { ParkingLocation } from '../models/parkingLocation.model.js';
-import { ParkingSlot } from '../models/parkingSlot.model.js';
-import { SensorEvent } from '../models/sensorEvent.model.js';
-import { RFIDEvent } from '../models/rfidEvent.model.js';
-import { logger } from '../utils/logger.js';
-import { SlotStatus, DeviceStatus, IoTTelemetryPayload } from '@smart-parking/shared';
-import {
-  emitSlotUpdated,
-  emitParkingUpdated,
-  emitDeviceUpdated,
-  emitDeviceOffline,
-  emitPredictionUpdated,
-} from '../sockets/index.js';
+import { Types } from "mongoose";
+import { DeviceStatus, FineStatus, IoTTelemetryPayload, ReservationStatus, SessionStatus, SlotStatus } from "@smart-parking/shared";
+import { IoTDevice, IIoTDevice } from "../models/ioTDevice.model.js";
+import { ParkingLocation } from "../models/parkingLocation.model.js";
+import { ParkingSlot, IParkingSlot } from "../models/parkingSlot.model.js";
+import { SensorEvent } from "../models/sensorEvent.model.js";
+import { emitDeviceUpdated, emitParkingUpdated, emitReservationUpdated, emitSessionUpdated, emitSlotUpdated } from "../sockets/index.js";
+import { logger } from "../utils/logger.js";
+import { RFIDService } from "../services/rfid.service.js";
+import { ParkingSession } from "../models/parkingSession.model.js";
+import { Reservation } from "../models/reservation.model.js";
+import { OverstayFine } from "../models/overstayFine.model.js";
+import { ReservationStateService } from "./reservationState.service.js";
+import { env } from "../config/env.js";
+
+const MAX_CLOCK_SKEW_MS = 5 * 60 * 1000;
+
+const parseTimestamp = (value: string | number | undefined): Date => {
+  if (value === undefined) throw new Error("Telemetry timestamp is required");
+  const timestamp = new Date(value);
+  if (Number.isNaN(timestamp.getTime())) throw new Error("Invalid telemetry timestamp");
+  if (timestamp.getTime() > Date.now() + MAX_CLOCK_SKEW_MS) throw new Error("Telemetry timestamp is too far in the future");
+  return timestamp;
+};
+
+export const getParkingTelemetryStats = async (parkingLocationId: Types.ObjectId) => {
+  const slots = await ParkingSlot.find({ parkingLocationId, isActive: true }).select("status");
+  const count = (status: SlotStatus) => slots.filter((slot) => slot.status === status).length;
+  const availableSlots = count(SlotStatus.AVAILABLE);
+  const occupiedSlots = count(SlotStatus.OCCUPIED);
+  const reservedSlots = count(SlotStatus.RESERVED);
+  const unknownSlots = count(SlotStatus.UNKNOWN);
+  const maintenanceSlots = count(SlotStatus.MAINTENANCE) + count(SlotStatus.OUT_OF_SERVICE);
+  const knownPhysicalSlots = availableSlots + occupiedSlots;
+  const occupancyRate = knownPhysicalSlots > 0 ? Math.round((occupiedSlots / knownPhysicalSlots) * 1000) / 10 : null;
+  return { totalSlots: slots.length, availableSlots, occupiedSlots, reservedSlots, maintenanceSlots, unknownSlots, occupancyRate };
+};
 
 export class IoTIngestionService {
-  public static async processTelemetry(payload: IoTTelemetryPayload) {
-    const { deviceId, isOffline, heartbeatOnly, sensors, slots, slotNumber, occupied, rfidCard } = payload;
+  private static async requireDevice(payload: IoTTelemetryPayload) {
     const parkingLocationId = payload.parkingId || payload.parkingLocationId;
-
-    logger.info(`📡 Processing IoT Telemetry: Device=${deviceId}, Parking=${parkingLocationId || 'auto'}`);
-
-    // 1. Find or create IoTDevice
-    let device = await IoTDevice.findOne({ deviceId });
-    let resolvedLocationId: Types.ObjectId | null = null;
-
-    if (parkingLocationId && Types.ObjectId.isValid(parkingLocationId)) {
-      resolvedLocationId = new Types.ObjectId(parkingLocationId);
-    } else if (parkingLocationId) {
-      // Find parking location by name or code if non-ObjectId string passed
-      const loc = await ParkingLocation.findOne({
-        $or: [{ _id: Types.ObjectId.isValid(parkingLocationId) ? parkingLocationId : null }, { name: new RegExp(parkingLocationId, 'i') }],
-      });
-      if (loc) resolvedLocationId = loc._id as Types.ObjectId;
+    if (!parkingLocationId || !Types.ObjectId.isValid(parkingLocationId)) throw new Error("A valid parking location ID is required");
+    const device = await IoTDevice.findOne({ deviceId: payload.deviceId, isActive: true });
+    if (!device) throw new Error(`Device ${payload.deviceId} is not enrolled`);
+    if (!device.parkingLocationId.equals(new Types.ObjectId(parkingLocationId))) {
+      throw new Error(`Device ${payload.deviceId} is not assigned to parking location ${parkingLocationId}`);
     }
+    return device;
+  }
 
-    if (!resolvedLocationId && device?.parkingLocationId) {
-      resolvedLocationId = device.parkingLocationId as Types.ObjectId;
-    }
+  private static async markOnline(device: IIoTDevice, timestamp: Date) {
+    device.status = DeviceStatus.ONLINE;
+    device.lastHeartbeat = timestamp;
+    device.lastMessageAt = timestamp;
+    await device.save();
+    emitDeviceUpdated({ deviceId: device.deviceId, parkingLocationId: device.parkingLocationId.toString(), status: DeviceStatus.ONLINE, lastHeartbeat: timestamp.toISOString() });
+  }
 
-    // Fallback to first active location if unassigned
-    if (!resolvedLocationId) {
-      const firstLoc = await ParkingLocation.findOne();
-      if (firstLoc) resolvedLocationId = firstLoc._id as Types.ObjectId;
-    }
-
-    if (!device) {
-      device = await IoTDevice.create({
-        deviceId,
-        parkingLocationId: resolvedLocationId,
-        name: deviceId,
-        thingName: deviceId,
-        status: isOffline ? DeviceStatus.OFFLINE : DeviceStatus.ONLINE,
-        lastHeartbeat: new Date(),
-        lastMessageAt: new Date(),
-        isActive: true,
-      });
-    } else {
-      device.status = isOffline ? DeviceStatus.OFFLINE : DeviceStatus.ONLINE;
-      device.lastHeartbeat = new Date();
-      device.lastMessageAt = new Date();
-      if (resolvedLocationId) device.parkingLocationId = resolvedLocationId;
-      await device.save();
-    }
-
-    // Handle offline status notification
-    if (isOffline) {
-      emitDeviceOffline({
-        deviceId,
-        parkingLocationId: resolvedLocationId?.toString(),
-        status: DeviceStatus.OFFLINE,
-        lastHeartbeat: device?.lastHeartbeat ? device.lastHeartbeat.toISOString() : new Date().toISOString(),
-      });
-      return { status: 'ok', message: 'Device marked offline' };
-    }
-
-    // Emit live device heartbeat / status update
-    emitDeviceUpdated({
-      deviceId,
-      parkingLocationId: resolvedLocationId?.toString(),
-      status: DeviceStatus.ONLINE,
-      lastHeartbeat: device?.lastHeartbeat ? device.lastHeartbeat.toISOString() : new Date().toISOString(),
-    });
-
-    if (heartbeatOnly) {
-      return { status: 'ok', message: 'Heartbeat recorded' };
-    }
-
-    if (!resolvedLocationId) {
-      logger.warn(`Cannot process slot updates: No valid ParkingLocation found for device ${deviceId}`);
-      return { status: 'ok', message: 'Heartbeat recorded without location' };
-    }
-
-    // 2. Process Slot Occupancy Updates
-    const updatedSlots: Array<{ slotId: string; slotNumber: string; status: SlotStatus }> = [];
-
-    // Case A: Specific single slot update provided in payload
-    if (slotNumber && typeof occupied === 'boolean') {
-      const slot = await ParkingSlot.findOne({
-        parkingLocationId: resolvedLocationId,
-        slotNumber,
-      });
-
-      if (slot) {
-        const newStatus = occupied ? SlotStatus.OCCUPIED : SlotStatus.AVAILABLE;
-        if (slot.status !== newStatus) {
-          slot.status = newStatus;
-          await slot.save();
-
-          await SensorEvent.create({
-            parkingLocationId: resolvedLocationId,
-            slotId: slot._id,
-            deviceId,
-            eventType: occupied ? 'SLOT_OCCUPIED' : 'SLOT_VACATED',
-            occupied,
-            timestamp: payload.timestamp ? new Date(payload.timestamp) : new Date(),
-            payload,
-          });
-
-          updatedSlots.push({
-            slotId: slot._id.toString(),
-            slotNumber: slot.slotNumber,
-            status: slot.status as SlotStatus,
-          });
-        }
+  public static async processRFIDScan(payload: IoTTelemetryPayload) {
+    const timestamp = parseTimestamp(payload.timestamp);
+    if (!payload.rfidUid || !payload.scannedSlotId || !payload.scanId) throw new Error("RFID scan must include a UID, scanned slot, and scan ID");
+    const device = await this.requireDevice(payload);
+    // ESP32 timestamps have one-second precision. Occupancy and RFID messages
+    // generated by the same card tap may therefore legitimately be equal.
+    if (device.lastMessageAt && timestamp.getTime() < device.lastMessageAt.getTime()) throw new Error("Stale or duplicate RFID event rejected");
+    const slot = payload.scannedSlotId
+      ? await ParkingSlot.findOne({
+          parkingLocationId: device.parkingLocationId,
+          deviceId: device._id,
+          isActive: true,
+          ...(Types.ObjectId.isValid(payload.scannedSlotId) ? { _id: new Types.ObjectId(payload.scannedSlotId) } : { slotNumber: payload.scannedSlotId }),
+        })
+      : null;
+    if (!slot) throw new Error("RFID scan must identify a slot assigned to this device");
+    const sensorSnapshot = payload.slots?.find((item) => item.slotId === payload.scannedSlotId);
+    if (sensorSnapshot && (!slot.lastSensorUpdate || timestamp.getTime() >= slot.lastSensorUpdate.getTime())) {
+      const newStatus = sensorSnapshot.occupied ? SlotStatus.OCCUPIED : SlotStatus.AVAILABLE;
+      const changed = slot.status !== newStatus;
+      slot.status = newStatus;
+      slot.lastSensorUpdate = timestamp;
+      await slot.save();
+      if (changed) {
+        await SensorEvent.create({ parkingLocationId: device.parkingLocationId, slotId: slot._id, deviceId: device.deviceId, eventType: sensorSnapshot.occupied ? "SLOT_OCCUPIED" : "SLOT_VACATED", occupied: sensorSnapshot.occupied, timestamp, payload });
+        emitSlotUpdated({ parkingLocationId: device.parkingLocationId.toString(), slotId: slot._id.toString(), slotNumber: slot.slotNumber, status: newStatus });
       }
     }
+    await this.markOnline(device, timestamp);
+    return RFIDService.processDeviceScan({ parkingLocationId: device.parkingLocationId.toString(), deviceId: device.deviceId, rfidUid: payload.rfidUid, slot });
+  }
 
-    // Case B: Multi-sensor object provided (e.g. { slot1: true, slot2: false, slot3: true })
-    if (sensors && typeof sensors === 'object') {
-      const locationSlots = await ParkingSlot.find({ parkingLocationId: resolvedLocationId }).sort({ slotNumber: 1 });
+  public static async processTelemetry(payload: IoTTelemetryPayload) {
+    const timestamp = parseTimestamp(payload.timestamp);
+    const device = await this.requireDevice(payload);
+    if (payload.heartbeatOnly === true) {
+      if (device.lastMessageAt && timestamp.getTime() < device.lastMessageAt.getTime()) throw new Error("Stale or duplicate heartbeat rejected");
+      await this.markOnline(device, timestamp);
+      return { status: "ok", message: "Heartbeat recorded" };
+    }
+    if (!payload.slots?.length) throw new Error("Occupancy telemetry must include slots");
+    const requestedIds = payload.slots.map((item) => item.slotId);
+    if (new Set(requestedIds).size !== requestedIds.length) throw new Error("Duplicate slot identifiers rejected");
 
-      const sensorKeys = Object.keys(sensors); // e.g. ['slot1', 'slot2', 'slot3']
-      for (let i = 0; i < sensorKeys.length; i++) {
-        const key = sensorKeys[i];
-        const isOccupied = Boolean(sensors[key]);
-        const targetSlot = locationSlots[i] || locationSlots.find((s) => s.slotNumber.toLowerCase().includes(`slot-${i + 1}`) || s.slotNumber.toLowerCase().includes(`a-10${i + 1}`));
+    const resolved: Array<{ slot: IParkingSlot; update: { slotId: string; occupied: boolean } }> = [];
+    for (const update of payload.slots) {
+      const slot = await ParkingSlot.findOne({
+        parkingLocationId: device.parkingLocationId,
+        isActive: true,
+        ...(Types.ObjectId.isValid(update.slotId) ? { _id: new Types.ObjectId(update.slotId) } : { slotNumber: update.slotId }),
+      });
+      if (!slot) throw new Error(`Slot ${update.slotId} is not registered for this parking location`);
+      if (!slot.deviceId || !slot.deviceId.equals(device._id as Types.ObjectId)) throw new Error(`Slot ${slot.slotNumber} is not assigned to device ${device.deviceId}`);
+      if (slot.status === SlotStatus.MAINTENANCE || slot.status === SlotStatus.OUT_OF_SERVICE) throw new Error(`Slot ${slot.slotNumber} is not accepting telemetry`);
+      if (slot.lastSensorUpdate && timestamp.getTime() < slot.lastSensorUpdate.getTime()) throw new Error(`Stale or duplicate telemetry rejected for slot ${slot.slotNumber}`);
+      resolved.push({ slot, update });
+    }
 
-        if (targetSlot) {
-          const newStatus = isOccupied ? SlotStatus.OCCUPIED : SlotStatus.AVAILABLE;
-          if (targetSlot.status !== newStatus && targetSlot.status !== SlotStatus.RESERVED) {
-            targetSlot.status = newStatus;
-            await targetSlot.save();
-
-            await SensorEvent.create({
-              parkingLocationId: resolvedLocationId,
-              slotId: targetSlot._id,
-              deviceId,
-              eventType: isOccupied ? 'SLOT_OCCUPIED' : 'SLOT_VACATED',
-              occupied: isOccupied,
-              timestamp: payload.timestamp ? new Date(payload.timestamp) : new Date(),
-              payload,
-            });
-
-            updatedSlots.push({
-              slotId: targetSlot._id.toString(),
-              slotNumber: targetSlot.slotNumber,
-              status: targetSlot.status as SlotStatus,
-            });
+    const updatedSlots: Array<{ slotId: string; slotNumber: string; status: SlotStatus }> = [];
+    for (const { slot, update } of resolved) {
+      const newStatus = update.occupied ? SlotStatus.OCCUPIED : SlotStatus.AVAILABLE;
+      const changed = slot.status !== newStatus;
+      slot.status = newStatus;
+      slot.lastSensorUpdate = timestamp;
+      await slot.save();
+      if (!update.occupied) {
+        const pendingSession = await ParkingSession.findOne({ slotId: slot._id, status: SessionStatus.CHECKOUT_PENDING, exitVerifiedAt: { $exists: true } });
+        if (pendingSession) {
+          const unpaidFine = await OverstayFine.exists({ sessionId: pendingSession._id, status: { $nin: [FineStatus.PAID, FineStatus.WAIVED] } });
+          if (!env.REQUIRE_FINE_PAYMENT_BEFORE_EXIT || !unpaidFine) {
+            const reservation = pendingSession.reservationId ? await Reservation.findById(pendingSession.reservationId) : null;
+            pendingSession.status = SessionStatus.COMPLETED;
+            pendingSession.checkOutTime = timestamp;
+            pendingSession.durationMinutes = Math.max(0, Math.ceil((timestamp.getTime() - pendingSession.checkInTime.getTime()) / 60000));
+            if (reservation) reservation.status = ReservationStatus.COMPLETED;
+            await Promise.all([
+              pendingSession.save(),
+              reservation?.save(),
+              ParkingSlot.updateOne({ _id: slot._id, currentReservationId: reservation?._id }, { $unset: { currentReservationId: 1 } }),
+            ]);
+            emitSessionUpdated({ sessionId: pendingSession._id.toString(), userId: pendingSession.userId.toString(), parkingLocationId: pendingSession.parkingLocationId.toString(), slotId: pendingSession.slotId.toString(), status: pendingSession.status, checkOutTime: timestamp.toISOString() });
+            if (reservation) emitReservationUpdated({ reservationId: reservation._id.toString(), userId: reservation.userId.toString(), parkingLocationId: reservation.parkingLocationId.toString(), slotId: reservation.slotId.toString(), status: reservation.status });
+            await ReservationStateService.publishForSlot(slot._id.toString());
           }
         }
       }
-    }
-
-    // Case C: Production ESP32 contract with stable slot identifiers.
-    if (Array.isArray(slots)) {
-      for (const update of slots) {
-        const slot = await ParkingSlot.findOne({
-          parkingLocationId: resolvedLocationId,
-          ...(Types.ObjectId.isValid(update.slotId)
-            ? { _id: new Types.ObjectId(update.slotId) }
-            : { slotNumber: update.slotId }),
-        });
-
-        if (!slot || slot.status === SlotStatus.MAINTENANCE || slot.status === SlotStatus.OUT_OF_SERVICE) {
-          continue;
-        }
-
-        const newStatus = update.occupied ? SlotStatus.OCCUPIED : SlotStatus.AVAILABLE;
-        if (slot.status !== newStatus) {
-          slot.status = newStatus;
-          slot.lastSensorUpdate = payload.timestamp ? new Date(payload.timestamp) : new Date();
-          await slot.save();
-
-          await SensorEvent.create({
-            parkingLocationId: resolvedLocationId,
-            slotId: slot._id,
-            deviceId,
-            eventType: update.occupied ? 'SLOT_OCCUPIED' : 'SLOT_VACATED',
-            occupied: update.occupied,
-            timestamp: payload.timestamp ? new Date(payload.timestamp) : new Date(),
-            payload,
-          });
-
-          updatedSlots.push({
-            slotId: slot._id.toString(),
-            slotNumber: slot.slotNumber,
-            status: slot.status as SlotStatus,
-          });
-        }
+      if (changed) {
+        await SensorEvent.create({ parkingLocationId: device.parkingLocationId, slotId: slot._id, deviceId: device.deviceId, eventType: update.occupied ? "SLOT_OCCUPIED" : "SLOT_VACATED", occupied: update.occupied, timestamp, payload });
+        updatedSlots.push({ slotId: slot._id.toString(), slotNumber: slot.slotNumber, status: newStatus });
       }
     }
 
-    // 3. Log RFID Event if RFID tap present
-    if (rfidCard) {
-      await RFIDEvent.create({
-        parkingLocationId: resolvedLocationId,
-        uid: rfidCard,
-        eventType: 'CHECK_IN',
-        timestamp: payload.timestamp ? new Date(payload.timestamp) : new Date(),
-      });
-      logger.info(`💳 RFID Card Tapped: ${rfidCard}`);
-    }
-
-    // 4. Recalculate Aggregate Parking Location Statistics
-    const allSlots = await ParkingSlot.find({ parkingLocationId: resolvedLocationId });
-    const totalSlots = allSlots.length;
-    const availableSlots = allSlots.filter((s) => s.status === SlotStatus.AVAILABLE).length;
-    const occupiedSlots = allSlots.filter((s) => s.status === SlotStatus.OCCUPIED).length;
-    const reservedSlots = allSlots.filter((s) => s.status === SlotStatus.RESERVED).length;
-    const maintenanceSlots = allSlots.filter((s) => s.status === SlotStatus.MAINTENANCE || s.status === SlotStatus.OUT_OF_SERVICE).length;
-
-    const occupancyRate = totalSlots > 0 ? Math.round((occupiedSlots / totalSlots) * 100 * 10) / 10 : 0;
-
-    // Update ParkingLocation summary fields
-    await ParkingLocation.findByIdAndUpdate(resolvedLocationId, {
-      totalSlots,
-      availableSlots,
-      occupancy: occupancyRate,
-    });
-
-    // 5. Emit Real-Time Socket.IO Events
-    // Emit individual slot:updated events
-    for (const s of updatedSlots) {
-      emitSlotUpdated({
-        parkingLocationId: resolvedLocationId.toString(),
-        slotId: s.slotId,
-        slotNumber: s.slotNumber,
-        status: s.status,
-      });
-    }
-
-    // Emit parking:updated event with overall aggregate stats
-    emitParkingUpdated({
-      parkingLocationId: resolvedLocationId.toString(),
-      totalSlots,
-      availableSlots,
-      occupiedSlots,
-      reservedSlots,
-      maintenanceSlots,
-      occupancyRate,
-    });
-
-    // Emit live occupancy prediction update
-    emitPredictionUpdated({
-      parkingLocationId: resolvedLocationId.toString(),
-      predictedOccupancyRate: Math.min(100, Math.round((occupancyRate + 5) * 10) / 10),
-      confidenceScore: 0.92,
-      predictedFor: new Date(Date.now() + 30 * 60 * 1000).toISOString(),
-    });
-
-    logger.info(
-      `⚡ Socket.IO Broadcast: Location=${resolvedLocationId} | Available=${availableSlots}/${totalSlots} (${occupancyRate}% Occupied)`
-    );
-
-    return {
-      status: 'ok',
-      parkingLocationId: resolvedLocationId.toString(),
-      updatedSlotsCount: updatedSlots.length,
-      locationStats: {
-        totalSlots,
-        availableSlots,
-        occupiedSlots,
-        reservedSlots,
-        occupancyRate,
-      },
-    };
+    await this.markOnline(device, timestamp);
+    const stats = await getParkingTelemetryStats(device.parkingLocationId);
+    await ParkingLocation.findByIdAndUpdate(device.parkingLocationId, { $set: { totalSlots: stats.totalSlots, availableSlots: stats.availableSlots, occupancy: stats.occupancyRate } });
+    for (const slot of updatedSlots) emitSlotUpdated({ parkingLocationId: device.parkingLocationId.toString(), ...slot });
+    if (updatedSlots.length > 0) emitParkingUpdated({ parkingLocationId: device.parkingLocationId.toString(), ...stats, updatedAt: new Date().toISOString() });
+    logger.info(`Accepted physical telemetry from ${device.deviceId}; ${updatedSlots.length} occupancy state(s) changed`);
+    return { status: "ok", parkingLocationId: device.parkingLocationId.toString(), updatedSlotsCount: updatedSlots.length, locationStats: stats };
   }
 }

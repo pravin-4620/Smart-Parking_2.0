@@ -14,6 +14,9 @@ import { hashPassword } from '../utils/password.js';
 import { getAuthorizedSlotsByLocation } from '../services/parking.service.js';
 import { ReservationService } from '../services/reservation.service.js';
 import { ParkingStatus, ReservationStatus, SessionStatus, SlotStatus, SlotType } from '@smart-parking/shared';
+import { AuditLog } from '../models/auditLog.model.js';
+import { OverstayFine } from '../models/overstayFine.model.js';
+import { RFIDEvent } from '../models/rfidEvent.model.js';
 
 const router = Router();
 
@@ -48,10 +51,10 @@ router.get(
       const locationIds = locations.map((l) => l._id);
 
       const totalSlots = await ParkingSlot.countDocuments({ parkingLocationId: { $in: locationIds } });
-      const [availableSlots, occupiedSlots, reservedSlots, activeSessions, todayReservations] = await Promise.all([
+      const [availableSlots, occupiedSlots, reservedSlotIds, activeSessions, todayReservations] = await Promise.all([
         ParkingSlot.countDocuments({ parkingLocationId: { $in: locationIds }, status: SlotStatus.AVAILABLE }),
         ParkingSlot.countDocuments({ parkingLocationId: { $in: locationIds }, status: SlotStatus.OCCUPIED }),
-        ParkingSlot.countDocuments({ parkingLocationId: { $in: locationIds }, status: SlotStatus.RESERVED }),
+        Reservation.distinct('slotId', { parkingLocationId: { $in: locationIds }, status: { $in: [ReservationStatus.CONFIRMED, ReservationStatus.ACTIVE, ReservationStatus.CHECKOUT_PENDING] } }),
         ParkingSession.countDocuments({ parkingLocationId: { $in: locationIds }, status: SessionStatus.ACTIVE }),
         Reservation.countDocuments({
           parkingLocationId: { $in: locationIds },
@@ -62,11 +65,11 @@ router.get(
       res.status(200).json({
         status: 'success',
         data: {
-          occupancyRate: totalSlots > 0 ? Math.round((occupiedSlots / totalSlots) * 100) : 0,
+          occupancyRate: availableSlots + occupiedSlots > 0 ? Math.round((occupiedSlots / (availableSlots + occupiedSlots)) * 100) : null,
           totalSlots,
           occupiedSlots,
           availableSlots,
-          reservedSlots,
+          reservedSlots: reservedSlotIds.length,
           activeSessions,
           todayReservations,
           locationsCount: locations.length,
@@ -78,6 +81,49 @@ router.get(
   }
 );
 
+router.patch('/admin/users/:userId/role', authenticate, authorize(UserRole.ADMIN), async (req: AuthenticatedRequest, res: Response) => {
+  if (req.user!.id === req.params.userId) return res.status(400).json({ error: 'Administrators cannot alter their own role' });
+  if (![UserRole.USER, UserRole.PARKING_MANAGER].includes(req.body.role)) return res.status(400).json({ error: 'Only USER and PARKING_MANAGER roles may be assigned here' });
+  const user = await User.findById(req.params.userId);
+  if (!user || user.role === UserRole.ADMIN) return res.status(404).json({ error: 'Eligible user not found' });
+  user.role = req.body.role;
+  await user.save();
+  await AuditLog.create({ userId: req.user!.id, role: req.user!.role, action: 'USER_ROLE_CHANGED', resource: 'User', resourceId: user._id.toString(), metadata: { newRole: user.role } });
+  res.json({ data: { id: user._id, name: user.name, email: user.email, role: user.role, isActive: user.isActive } });
+});
+
+router.patch('/admin/users/:userId/active', authenticate, authorize(UserRole.ADMIN), async (req: AuthenticatedRequest, res: Response) => {
+  if (req.user!.id === req.params.userId) return res.status(400).json({ error: 'Administrators cannot deactivate their own account' });
+  if (typeof req.body.isActive !== 'boolean') return res.status(400).json({ error: 'isActive must be a boolean' });
+  const user = await User.findById(req.params.userId);
+  if (!user || user.role === UserRole.ADMIN) return res.status(404).json({ error: 'Eligible user not found' });
+  user.isActive = req.body.isActive;
+  await user.save();
+  await AuditLog.create({ userId: req.user!.id, role: req.user!.role, action: user.isActive ? 'USER_ACTIVATED' : 'USER_DEACTIVATED', resource: 'User', resourceId: user._id.toString() });
+  res.json({ data: { id: user._id, isActive: user.isActive } });
+});
+
+router.get('/admin/audit', authenticate, authorize(UserRole.ADMIN), async (req, res) => {
+  const page = Math.max(1, Number(req.query.page) || 1);
+  const limit = Math.min(100, Math.max(1, Number(req.query.limit) || 25));
+  const [data, total] = await Promise.all([AuditLog.find().populate('userId', 'name email role').sort({ timestamp: -1 }).skip((page - 1) * limit).limit(limit).lean(), AuditLog.countDocuments()]);
+  res.json({ data, pagination: { page, limit, total } });
+});
+
+router.get('/admin/fines', authenticate, authorize(UserRole.ADMIN), async (_req, res) => {
+  res.json({ data: await OverstayFine.find().populate('userId', 'name email').populate('parkingLocationId', 'name').populate('slotId', 'slotNumber').sort({ calculatedAt: -1 }).lean() });
+});
+
+router.get('/manager/fines', authenticate, authorize(UserRole.ADMIN, UserRole.PARKING_MANAGER), async (req: AuthenticatedRequest, res: Response) => {
+  const { locationIds } = await getManagedLocationIds(req);
+  res.json({ data: await OverstayFine.find({ parkingLocationId: { $in: locationIds } }).populate('slotId', 'slotNumber').sort({ calculatedAt: -1 }).lean() });
+});
+
+router.get('/manager/rfid-events', authenticate, authorize(UserRole.ADMIN, UserRole.PARKING_MANAGER), async (req: AuthenticatedRequest, res: Response) => {
+  const { locationIds } = await getManagedLocationIds(req);
+  res.json({ data: await RFIDEvent.find({ parkingLocationId: { $in: locationIds } }).select('-uid').populate('slotId', 'slotNumber').sort({ timestamp: -1 }).limit(200).lean() });
+});
+
 // Admin Dashboard Data
 router.get(
   '/admin/dashboard',
@@ -88,7 +134,14 @@ router.get(
       const totalUsers = await User.countDocuments();
       const totalLocations = await ParkingLocation.countDocuments();
       const totalSlots = await ParkingSlot.countDocuments();
-      const totalReservations = await Reservation.countDocuments();
+      const [totalReservations, totalManagers, totalDevices, onlineDevices, revenueRows, finesDue] = await Promise.all([
+        Reservation.countDocuments(),
+        User.countDocuments({ role: UserRole.PARKING_MANAGER }),
+        IoTDevice.countDocuments(),
+        IoTDevice.countDocuments({ status: 'ONLINE' }),
+        PaymentTransaction.aggregate([{ $match: { status: { $in: ['COMPLETED', 'PAID'] } } }, { $group: { _id: '$currency', amount: { $sum: '$amount' } } }]),
+        OverstayFine.countDocuments({ status: { $in: ['DUE', 'PAYMENT_PENDING'] } }),
+      ]);
 
       res.status(200).json({
         status: 'success',
@@ -97,6 +150,11 @@ router.get(
           totalLocations,
           totalSlots,
           totalReservations,
+          totalManagers,
+          totalDevices,
+          onlineDevices,
+          revenue: revenueRows,
+          finesDue,
         },
       });
     } catch (err: any) {
@@ -169,8 +227,20 @@ router.patch('/manager/reservations/:reservationId/cancel', authenticate, author
   res.json({ data: updated, message: 'Reservation cancelled successfully' });
 });
 
+router.patch('/manager/reservations/:reservationId/confirm', authenticate, authorize(UserRole.ADMIN, UserRole.PARKING_MANAGER), async (req: AuthenticatedRequest, res: Response) => {
+  try {
+    const reservation = await ReservationService.confirmReservation(req.params.reservationId, req.user!.id, req.user!.role);
+    res.json({ data: reservation, message: 'No-payment reservation confirmed by authorized operator' });
+  } catch (error: any) {
+    res.status(error.statusCode || 400).json({ error: 'Reservation confirmation failed', message: error.message });
+  }
+});
+
 router.patch('/manager/slots/:slotId', authenticate, authorize(UserRole.ADMIN, UserRole.PARKING_MANAGER), async (req: AuthenticatedRequest, res: Response) => {
   const { locationIds } = await getManagedLocationIds(req);
+  if (![SlotStatus.MAINTENANCE, SlotStatus.OUT_OF_SERVICE].includes(req.body.status)) {
+    return res.status(400).json({ error: 'Operational users may only place slots into maintenance or out-of-service; occupancy is hardware-owned' });
+  }
   const slot = await ParkingSlot.findOneAndUpdate(
     { _id: req.params.slotId, parkingLocationId: { $in: locationIds } },
     { status: req.body.status },
@@ -225,10 +295,12 @@ router.get('/admin/managers', authenticate, authorize(UserRole.ADMIN), async (_r
 router.post('/admin/managers', authenticate, authorize(UserRole.ADMIN), async (req, res) => {
   const { name, email, phone, password, parkingLocationId } = req.body;
   if (!name || !email || !password) return res.status(400).json({ error: 'Name, email, and password are required' });
+  if (String(name).trim().length < 2 || !/^\S+@\S+\.\S+$/.test(String(email)) || String(password).length < 12) return res.status(400).json({ error: 'Provide a valid name/email and a password of at least 12 characters' });
   if (await User.exists({ email: String(email).toLowerCase() })) return res.status(409).json({ error: 'Email is already registered' });
   if (parkingLocationId && !(await ParkingLocation.exists({ _id: parkingLocationId }))) return res.status(404).json({ error: 'Parking facility not found' });
   const manager = await User.create({ name, email: String(email).toLowerCase(), phone, passwordHash: await hashPassword(password), role: UserRole.PARKING_MANAGER, isActive: true });
   if (parkingLocationId) await ParkingLocation.findByIdAndUpdate(parkingLocationId, { $addToSet: { managerIds: manager._id } });
+  await AuditLog.create({ userId: (req as AuthenticatedRequest).user!.id, role: UserRole.ADMIN, action: 'MANAGER_CREATED', resource: 'User', resourceId: manager._id.toString(), metadata: { parkingLocationId: parkingLocationId || null } });
   res.status(201).json({ data: { id: manager._id, name: manager.name, email: manager.email, phone: manager.phone, role: manager.role, isActive: manager.isActive } });
 });
 
@@ -239,6 +311,7 @@ router.put('/admin/managers/:managerId/assignment', authenticate, authorize(User
   if (!location) return res.status(404).json({ error: 'Parking facility not found' });
   await ParkingLocation.updateMany({ managerIds: manager._id }, { $pull: { managerIds: manager._id } });
   await ParkingLocation.findByIdAndUpdate(location._id, { $addToSet: { managerIds: manager._id } });
+  await AuditLog.create({ userId: (req as AuthenticatedRequest).user!.id, role: UserRole.ADMIN, action: 'MANAGER_ASSIGNMENT_CHANGED', resource: 'ParkingLocation', resourceId: location._id.toString(), metadata: { managerId: manager._id.toString() } });
   res.json({ data: { managerId: manager._id, parkingLocationId: location._id } });
 });
 
@@ -257,7 +330,7 @@ router.post('/admin/parking', authenticate, authorize(UserRole.ADMIN), async (re
   if (!name || !address || !city || !Number.isFinite(Number(latitude)) || !Number.isFinite(Number(longitude))) return res.status(400).json({ error: 'Name, address, city, latitude, and longitude are required' });
   const slotCount = Math.max(1, Math.min(500, Number(totalSlots)));
   const location = await ParkingLocation.create({ name, address, city, state, country, postalCode, geoLocation: { type: 'Point', coordinates: [Number(longitude), Number(latitude)] }, operatingHours: { openTime: '00:00', closeTime: '23:59', is24x7: true }, features: [], status: ParkingStatus.ACTIVE, managerIds: managerId ? [managerId] : [] });
-  await ParkingSlot.insertMany(Array.from({ length: slotCount }, (_, index) => ({ parkingLocationId: location._id, slotNumber: `SLOT-${String(index + 1).padStart(2, '0')}`, slotType: SlotType.REGULAR, status: SlotStatus.AVAILABLE, isActive: true })));
+  await ParkingSlot.insertMany(Array.from({ length: slotCount }, (_, index) => ({ parkingLocationId: location._id, slotNumber: `SLOT-${String(index + 1).padStart(2, '0')}`, slotType: SlotType.REGULAR, status: SlotStatus.UNKNOWN, isActive: true })));
   res.status(201).json({ data: location });
 });
 

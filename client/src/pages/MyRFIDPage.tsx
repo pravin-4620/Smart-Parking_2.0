@@ -6,7 +6,6 @@ import { CreditCard, Plus, Trash2, ShieldCheck, Loader2 } from 'lucide-react';
 export const MyRFIDPage: React.FC = () => {
   const [cards, setCards] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
-  const [cardNumber, setCardNumber] = useState('');
   const [submitting, setSubmitting] = useState(false);
 
   useEffect(() => {
@@ -29,8 +28,7 @@ export const MyRFIDPage: React.FC = () => {
     e.preventDefault();
     try {
       setSubmitting(true);
-      await apiClient.post('/rfid-cards', { uid: cardNumber });
-      setCardNumber('');
+      await apiClient.post('/rfid-cards', {});
       fetchCards();
     } catch (err: any) {
       alert(err.response?.data?.message || 'Failed to link card');
@@ -51,26 +49,18 @@ export const MyRFIDPage: React.FC = () => {
 
   return (
     <div className="max-w-4xl mx-auto space-y-6">
-      <PageHeader eyebrow="Your parking activity" title="Your parking passes" description="Link a pass for tap-to-enter access and manage your existing cards." />
+      <PageHeader eyebrow="Your parking activity" title="Your parking passes" description="Request an available physical pass for authenticated tap-to-enter access." />
 
       {/* Link New RFID Card Form */}
       <div className="bg-white p-6 rounded-2xl border border-slate-200 shadow-sm space-y-4">
-        <h2 className="text-base font-bold text-slate-800">Link New RFID Card</h2>
-        <form onSubmit={handleAddCard} className="grid grid-cols-1 sm:grid-cols-3 gap-3">
-          <input
-            type="text"
-            required
-            placeholder="RFID Card Number (12 digits)"
-            value={cardNumber}
-            onChange={(e) => setCardNumber(e.target.value.toUpperCase())}
-            className="p-3 bg-slate-50 border border-slate-200 rounded-xl text-xs font-mono font-bold text-slate-800"
-          />
+        <h2 className="text-base font-bold text-slate-800">Request Physical RFID Pass</h2>
+        <form onSubmit={handleAddCard}>
           <button
             type="submit"
-            disabled={submitting || !cardNumber}
+            disabled={submitting}
             className="py-3 px-4 bg-indigo-600 hover:bg-indigo-700 text-white font-bold rounded-xl text-xs flex items-center justify-center gap-2 transition disabled:opacity-50"
           >
-            {submitting ? <Loader2 className="w-4 h-4 animate-spin" /> : <Plus className="w-4 h-4" />} Link Pass
+            {submitting ? <Loader2 className="w-4 h-4 animate-spin" /> : <Plus className="w-4 h-4" />} Assign Available Pass
           </button>
         </form>
       </div>
@@ -84,7 +74,7 @@ export const MyRFIDPage: React.FC = () => {
         <div className="bg-white border border-slate-200 rounded-2xl p-12 text-center text-slate-500">
           <CreditCard className="w-12 h-12 text-slate-300 mx-auto mb-3" />
           <h3 className="text-lg font-bold text-slate-700">No RFID Cards Linked</h3>
-          <p className="text-xs text-slate-400 mt-1">Enter your card number above to link a physical pass.</p>
+          <p className="text-xs text-slate-400 mt-1">Request one of the available physical tags. UIDs cannot be entered or fabricated in the browser.</p>
         </div>
       ) : (
         <div className="grid grid-cols-1 md:grid-cols-2 gap-4">

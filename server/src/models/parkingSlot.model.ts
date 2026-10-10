@@ -33,7 +33,7 @@ const parkingSlotSchema = new Schema<IParkingSlot>(
     status: {
       type: String,
       enum: Object.values(SlotStatus),
-      default: SlotStatus.AVAILABLE,
+      default: SlotStatus.UNKNOWN,
       required: true,
       index: true,
     },

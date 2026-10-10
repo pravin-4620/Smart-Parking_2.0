@@ -113,6 +113,7 @@ export const ParkingMap: React.FC<ParkingMapProps> = ({
           const pos = getCoordsPercentage(loc.coordinates[1], loc.coordinates[0]);
           const isSelected = selectedId === loc.parkingId || activePin?.parkingId === loc.parkingId;
           const isAvailable = loc.availableSlots > 0;
+          const isUnavailable = loc.telemetryStatus === 'UNAVAILABLE';
 
           return (
             <div
@@ -130,6 +131,8 @@ export const ParkingMap: React.FC<ParkingMapProps> = ({
                     ? 'bg-amber-500 border-white text-slate-900 ring-4 ring-amber-500/30'
                     : isAvailable
                     ? 'bg-emerald-600 border-white text-white'
+                    : isUnavailable
+                    ? 'bg-slate-500 border-white text-white'
                     : 'bg-red-600 border-white text-white'
                 }`}
               >
@@ -137,7 +140,7 @@ export const ParkingMap: React.FC<ParkingMapProps> = ({
               </div>
               <div className="mt-0.5 text-center">
                 <span className="bg-slate-900/90 text-white text-[10px] font-bold px-1.5 py-0.5 rounded border border-slate-700 shadow whitespace-nowrap">
-                  {loc.availableSlots}/{loc.totalSlots}
+                  {isUnavailable ? 'Unknown' : `${loc.availableSlots}/${loc.totalSlots}`}
                 </span>
               </div>
             </div>
@@ -163,8 +166,8 @@ export const ParkingMap: React.FC<ParkingMapProps> = ({
               <p className="text-xs text-slate-400 mt-0.5">{activePin.address}</p>
               <div className="flex items-center space-x-4 text-xs font-mono text-slate-300 mt-2">
                 <span>📍 {activePin.distance} km away</span>
-                <span className="text-emerald-400 font-bold">
-                  {activePin.availableSlots} / {activePin.totalSlots} Slots Free
+                <span className={activePin.telemetryStatus === 'UNAVAILABLE' ? 'text-slate-300 font-bold' : 'text-emerald-400 font-bold'}>
+                  {activePin.telemetryStatus === 'UNAVAILABLE' ? 'Live occupancy unavailable' : `${activePin.availableSlots} / ${activePin.totalSlots} Slots Free`}
                 </span>
                 <span>₹{activePin.startingPrice}/hr</span>
               </div>
@@ -184,6 +187,10 @@ export const ParkingMap: React.FC<ParkingMapProps> = ({
       {/* Map Footer Legend */}
       <div className="relative z-10 px-4 py-2 bg-slate-950 border-t border-slate-800 flex items-center justify-between text-[11px] text-slate-400">
         <div className="flex items-center space-x-4">
+          <div className="flex items-center space-x-1">
+            <span className="w-2.5 h-2.5 rounded-full bg-slate-500"></span>
+            <span>Telemetry unavailable</span>
+          </div>
           <div className="flex items-center space-x-1">
             <span className="w-2.5 h-2.5 rounded-full bg-sky-500"></span>
             <span>Your Location</span>

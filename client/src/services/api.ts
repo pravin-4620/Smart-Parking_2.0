@@ -25,7 +25,7 @@ const refreshClient = axios.create({
   headers: { 'Content-Type': 'application/json' },
 });
 
-// Backwards-compatible name used by the existing simulator page.
+// Backwards-compatible alias used by older application services.
 export const api = apiClient;
 
 apiClient.interceptors.request.use((config) => {

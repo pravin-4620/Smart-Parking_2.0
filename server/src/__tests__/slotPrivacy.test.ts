@@ -460,7 +460,7 @@ describe('Private Reservation & Vehicle Details in Slot Map Tests', () => {
     await User.deleteOne({ _id: noVehicleUser._id });
   });
 
-  it('15. Manager cancellation clears reservation details and resets slot to AVAILABLE', async () => {
+  it('15. Manager cancellation clears reservation details without fabricating physical status', async () => {
     // Manager A cancels reservation for slot A2
     const cancelRes = await request(app)
       .patch(`/api/manager/reservations/${reservationDoc._id}/cancel`)
@@ -468,14 +468,14 @@ describe('Private Reservation & Vehicle Details in Slot Map Tests', () => {
 
     expect(cancelRes.status).toBe(200);
 
-    // Verify slot details now show AVAILABLE with reservation: null
+    // Reservation linkage is cleared; sensor-owned status is unchanged.
     const res = await request(app)
       .get(`/api/parking-locations/${locationA._id}/slots/details`)
       .set('Authorization', `Bearer ${managerAToken}`);
 
     expect(res.status).toBe(200);
     const updatedSlot = res.body.data.find((s: any) => s._id === slotA2._id.toString());
-    expect(updatedSlot.status).toBe(SlotStatus.AVAILABLE);
+    expect(updatedSlot.status).toBe(SlotStatus.RESERVED);
     expect(updatedSlot.reservation).toBeNull();
   });
 
@@ -498,4 +498,3 @@ describe('Private Reservation & Vehicle Details in Slot Map Tests', () => {
   });
 
 });
-

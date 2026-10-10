@@ -4,21 +4,51 @@ services:
     container_name: smart_parking_mongodb
     restart: always
     ports:
-      - '27017:27017'
+      # 27018 avoids colliding with a native Homebrew MongoDB on this Mac.
+      - "27018:27017"
     environment:
       MONGO_INITDB_DATABASE: smart_parking
     volumes:
       - mongodb_data:/data/db
+    healthcheck:
+      test: ["CMD", "mongosh", "--quiet", "--eval", "db.adminCommand('ping').ok"]
+      interval: 5s
+      timeout: 3s
+      retries: 10
 
   redis:
     image: redis:7.2-alpine
     container_name: smart_parking_redis
     restart: always
     ports:
-      - '6379:6379'
+      - "6379:6379"
     volumes:
       - redis_data:/data
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 5s
+      timeout: 3s
+      retries: 10
+
+  mqtt:
+    image: eclipse-mosquitto:2.0
+    container_name: smart_parking_mqtt
+    restart: always
+    ports:
+      - "1883:1883"
+    volumes:
+      - ./infrastructure/mosquitto.conf:/mosquitto/config/mosquitto.conf:ro
+      - ./infrastructure/mosquitto.acl:/mosquitto/config/acl:ro
+      - ./infrastructure/mosquitto.passwords:/mosquitto/config/passwords:ro
+      - ./.secrets/mqtt_backend_password:/run/secrets/mqtt_backend_password:ro
+      - mqtt_data:/mosquitto/data
+    healthcheck:
+      test: ["CMD-SHELL", "mosquitto_sub -h 127.0.0.1 -p 1883 -u smart-parking-backend -P \"$$(cat /run/secrets/mqtt_backend_password)\" -t '$$SYS/broker/version' -C 1 -W 3 >/dev/null"]
+      interval: 5s
+      timeout: 4s
+      retries: 10
 
 volumes:
   mongodb_data:
   redis_data:
+  mqtt_data:

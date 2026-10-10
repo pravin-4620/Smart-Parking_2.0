@@ -5,4 +5,3 @@ export * from './parking.controller.js';
 export * from './pricing.controller.js';
 export * from './reservation.controller.js';
 export * from './allocation.controller.js';
-export * from './payment.controller.js';

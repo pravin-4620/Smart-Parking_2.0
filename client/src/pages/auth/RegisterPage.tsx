@@ -3,8 +3,7 @@ import React, { useState } from 'react';
 import { useNavigate, Link } from 'react-router-dom';
 import { useAuth } from '../../hooks/useAuth';
 import { registerApi } from '../../services/authService';
-import { UserRole } from '@smart-parking/shared';
-import { User, Mail, Lock, Phone, AlertCircle, Shield } from 'lucide-react';
+import { User, Mail, Lock, Phone, AlertCircle, Car, CheckCircle2 } from 'lucide-react';
 
 export const RegisterPage: React.FC = () => {
   const navigate = useNavigate();
@@ -13,7 +12,8 @@ export const RegisterPage: React.FC = () => {
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [phone, setPhone] = useState('');
-  const [role, setRole] = useState<UserRole>(UserRole.USER);
+  const [vehicleRegistrationNumber, setVehicleRegistrationNumber] = useState('');
+  const [registrationResult, setRegistrationResult] = useState<{ vehicleRegistrationNumber?: string; rfidAssignment?: { status: 'ASSIGNED' | 'PENDING'; uid?: string } } | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [isLoading, setIsLoading] = useState(false);
 
@@ -23,9 +23,9 @@ export const RegisterPage: React.FC = () => {
     setIsLoading(true);
 
     try {
-      const res = await registerApi({ name, email, password, phone, role });
+      const res = await registerApi({ name, email, password, phone, vehicleRegistrationNumber });
       login(res);
-      navigate('/');
+      setRegistrationResult(res);
     } catch (err: unknown) {
       if (err && typeof err === 'object' && 'response' in err) {
         const responseError = err as { response?: { data?: { error?: string } } };
@@ -40,9 +40,22 @@ export const RegisterPage: React.FC = () => {
 
   return (
     <AuthLayout><div className="auth-panel max-w-md mx-auto my-10 bg-white p-8 rounded-xl shadow-sm border border-slate-200">
+      {registrationResult ? (
+        <div className="space-y-4 text-center">
+          <CheckCircle2 className="w-12 h-12 text-emerald-600 mx-auto" />
+          <h2 className="text-2xl font-bold text-slate-900">Account created</h2>
+          <p className="text-sm text-slate-600">Vehicle: <strong>{registrationResult.vehicleRegistrationNumber}</strong></p>
+          <p className="text-sm text-slate-600">
+            {registrationResult.rfidAssignment?.status === 'ASSIGNED'
+              ? <>Physical RFID assigned: <strong>{registrationResult.rfidAssignment.uid}</strong></>
+              : 'RFID assignment is pending because no unassigned physical card is available.'}
+          </p>
+          <button onClick={() => navigate('/')} className="w-full bg-sky-600 text-white font-medium py-2.5 rounded-lg">Continue</button>
+        </div>
+      ) : <>
       <div className="text-center mb-6">
         <h2 className="text-2xl font-bold text-slate-900">Create an Account</h2>
-        <p className="text-slate-500 text-sm mt-1">Join Smart Parking Platform</p>
+        <p className="text-slate-500 text-sm mt-1">Create your standard user account to book and manage parking.</p>
       </div>
 
       {error && (
@@ -53,6 +66,21 @@ export const RegisterPage: React.FC = () => {
       )}
 
       <form onSubmit={handleSubmit} className="space-y-4">
+        <div>
+          <label className="block text-xs font-semibold text-slate-700 uppercase mb-1">Vehicle Registration Number</label>
+          <div className="relative">
+            <Car className="w-5 h-5 text-slate-400 absolute left-3 top-2.5" />
+            <input
+              type="text"
+              required
+              value={vehicleRegistrationNumber}
+              onChange={(e) => setVehicleRegistrationNumber(e.target.value.toUpperCase())}
+              className="w-full pl-10 pr-4 py-2 border border-slate-300 rounded-lg text-sm focus:ring-2 focus:ring-sky-500 focus:outline-none"
+              placeholder="TN 38 AB 1234"
+            />
+          </div>
+        </div>
+
         <div>
           <label className="block text-xs font-semibold text-slate-700 uppercase mb-1">Full Name</label>
           <div className="relative">
@@ -98,22 +126,6 @@ export const RegisterPage: React.FC = () => {
         </div>
 
         <div>
-          <label className="block text-xs font-semibold text-slate-700 uppercase mb-1">Account Role</label>
-          <div className="relative">
-            <Shield className="w-5 h-5 text-slate-400 absolute left-3 top-2.5" />
-            <select
-              value={role}
-              onChange={(e) => setRole(e.target.value as UserRole)}
-              className="w-full pl-10 pr-4 py-2 border border-slate-300 rounded-lg text-sm focus:ring-2 focus:ring-sky-500 focus:outline-none bg-white"
-            >
-              <option value={UserRole.USER}>Standard User (Book & Park)</option>
-              <option value={UserRole.PARKING_MANAGER}>Parking Manager</option>
-              <option value={UserRole.ADMIN}>System Admin</option>
-            </select>
-          </div>
-        </div>
-
-        <div>
           <label className="block text-xs font-semibold text-slate-700 uppercase mb-1">Password</label>
           <div className="relative">
             <Lock className="w-5 h-5 text-slate-400 absolute left-3 top-2.5" />
@@ -144,6 +156,7 @@ export const RegisterPage: React.FC = () => {
           Sign In Here
         </Link>
       </div>
+      </>}
     </div></AuthLayout>
   );
 };

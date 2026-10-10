@@ -16,16 +16,12 @@ import { NearbyParkingPage } from '../pages/NearbyParkingPage';
 import { ParkingDetailPage } from '../pages/ParkingDetailPage';
 import { NewBookingPage } from '../pages/NewBookingPage';
 import { BookingDetailPage } from '../pages/BookingDetailPage';
-import { BookingCheckoutPage } from '../pages/BookingCheckoutPage';
 import { MyBookingsPage } from '../pages/MyBookingsPage';
 import { MySessionsPage } from '../pages/MySessionsPage';
 import { MyVehiclesPage } from '../pages/MyVehiclesPage';
 import { MyRFIDPage } from '../pages/MyRFIDPage';
 import { NotificationsPage } from '../pages/NotificationsPage';
 import { ProfilePage } from '../pages/ProfilePage';
-import { PaymentPage } from '../pages/PaymentPage';
-import { PaymentSuccessPage } from '../pages/PaymentSuccessPage';
-import { PaymentFailurePage } from '../pages/PaymentFailurePage';
 import { UnauthorizedPage } from '../pages/UnauthorizedPage';
 import { ManagerDashboardPage } from '../pages/manager/ManagerDashboardPage';
 import { ManagerParkingPage } from '../pages/manager/ManagerParkingPage';
@@ -48,7 +44,6 @@ import { AdminPricingPage } from '../pages/admin/AdminPricingPage';
 import { AdminAnalyticsPage } from '../pages/admin/AdminAnalyticsPage';
 import { AdminReportsPage } from '../pages/admin/AdminReportsPage';
 import { AdminAuditPage } from '../pages/admin/AdminAuditPage';
-import { AdminSimulatorPage } from '../pages/admin/AdminSimulatorPage';
 import { AdminSettingsPage } from '../pages/admin/AdminSettingsPage';
 
 const RoleBasedHome: React.FC = () => {
@@ -83,16 +78,12 @@ export const AppRoutes: React.FC = () => {
           <Route path="/parking/:parkingId" element={<ParkingDetailPage />} />
           <Route path="/booking" element={<NewBookingPage />} />
           <Route path="/booking/:id" element={<BookingDetailPage />} />
-          <Route path="/checkout/:reservationId" element={<BookingCheckoutPage />} />
           <Route path="/my-bookings" element={<MyBookingsPage />} />
           <Route path="/my-sessions" element={<MySessionsPage />} />
           <Route path="/my-vehicles" element={<MyVehiclesPage />} />
           <Route path="/my-rfid" element={<MyRFIDPage />} />
           <Route path="/notifications" element={<NotificationsPage />} />
           <Route path="/profile" element={<ProfilePage />} />
-          <Route path="/payment" element={<PaymentPage />} />
-          <Route path="/payment/success" element={<PaymentSuccessPage />} />
-          <Route path="/payment/failure" element={<PaymentFailurePage />} />
 
           <Route element={<RoleGuard allowedRoles={[UserRole.PARKING_MANAGER]} />}>
             <Route path="/manager" element={<ManagerDashboardPage />} />
@@ -119,7 +110,6 @@ export const AppRoutes: React.FC = () => {
             <Route path="/admin/analytics" element={<AdminAnalyticsPage />} />
             <Route path="/admin/reports" element={<AdminReportsPage />} />
             <Route path="/admin/audit" element={<AdminAuditPage />} />
-            <Route path="/admin/simulator" element={<AdminSimulatorPage />} />
             <Route path="/admin/settings" element={<AdminSettingsPage />} />
           </Route>
         </Route>

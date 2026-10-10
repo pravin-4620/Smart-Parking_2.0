@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { apiClient } from '../services/api.js';
-import { MapPin, Calendar, Clock, CreditCard, XCircle, ArrowLeft, QrCode, ShieldCheck, Loader2, AlertCircle } from 'lucide-react';
+import { MapPin, Calendar, Clock, XCircle, ArrowLeft, QrCode, ShieldCheck, Loader2, AlertCircle } from 'lucide-react';
 
 export const BookingDetailPage: React.FC = () => {
   const { id } = useParams<{ id: string }>();
@@ -82,7 +82,7 @@ export const BookingDetailPage: React.FC = () => {
               className={`px-3 py-1 rounded-full text-xs font-extrabold border ${
                 booking.status === 'CONFIRMED'
                   ? 'bg-emerald-50 text-emerald-700 border-emerald-200'
-                  : booking.status === 'PENDING_PAYMENT'
+                  : booking.status === 'PENDING_CONFIRMATION'
                   ? 'bg-amber-50 text-amber-700 border-amber-200'
                   : 'bg-slate-100 text-slate-600 border-slate-200'
               }`}
@@ -156,22 +156,15 @@ export const BookingDetailPage: React.FC = () => {
         {/* Pricing Snapshot */}
         <div className="flex flex-wrap gap-3 justify-between items-center pt-2">
           <div>
-            <span className="text-xs text-slate-400 font-bold uppercase block">Amount Paid / Tariff</span>
+            <span className="text-xs text-slate-400 font-bold uppercase block">Estimated tariff (not paid online)</span>
             <span className="text-xl font-extrabold text-emerald-600">
               ₹{booking.pricingSnapshot?.totalAmount || 60} {booking.pricingSnapshot?.currency || 'INR'}
             </span>
           </div>
 
-          {booking.status === 'PENDING_PAYMENT' && (
-            <button
-              onClick={() => navigate(`/checkout/${booking._id}`)}
-              className="px-6 py-2.5 bg-indigo-600 hover:bg-indigo-700 text-white font-bold rounded-xl text-xs shadow-md flex items-center gap-2 transition"
-            >
-              <CreditCard className="w-4 h-4" /> Pay Now
-            </button>
-          )}
+          {booking.status === 'PENDING_CONFIRMATION' && <p className="text-sm font-semibold text-amber-700">Awaiting confirmation by an authorized facility manager.</p>}
 
-          {(booking.status === 'CONFIRMED' || booking.status === 'PENDING_PAYMENT') && (
+          {(booking.status === 'CONFIRMED' || booking.status === 'PENDING_CONFIRMATION') && (
             <button
               onClick={handleCancelBooking}
               disabled={cancelling}

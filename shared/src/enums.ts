@@ -9,6 +9,7 @@ export type UserRole = (typeof UserRole)[keyof typeof UserRole];
 export const UserRoleSchema = z.nativeEnum(UserRole);
 
 export const SlotStatus = {
+  UNKNOWN: 'UNKNOWN',
   AVAILABLE: 'AVAILABLE',
   RESERVED: 'RESERVED',
   OCCUPIED: 'OCCUPIED',
@@ -30,8 +31,10 @@ export const SlotTypeSchema = z.nativeEnum(SlotType);
 
 export const ReservationStatus = {
   PENDING_PAYMENT: 'PENDING_PAYMENT',
+  PENDING_CONFIRMATION: 'PENDING_CONFIRMATION',
   CONFIRMED: 'CONFIRMED',
   ACTIVE: 'ACTIVE',
+  CHECKOUT_PENDING: 'CHECKOUT_PENDING',
   COMPLETED: 'COMPLETED',
   CANCELLED: 'CANCELLED',
   EXPIRED: 'EXPIRED',
@@ -97,12 +100,22 @@ export const RFIDEventTypeSchema = z.nativeEnum(RFIDEventType);
 
 export const SessionStatus = {
   ACTIVE: 'ACTIVE',
+  CHECKOUT_PENDING: 'CHECKOUT_PENDING',
   COMPLETED: 'COMPLETED',
   OVERSTAY: 'OVERSTAY',
   FORCE_CLOSED: 'FORCE_CLOSED',
 } as const;
 export type SessionStatus = (typeof SessionStatus)[keyof typeof SessionStatus];
 export const SessionStatusSchema = z.nativeEnum(SessionStatus);
+
+export const FineStatus = {
+  DUE: 'DUE',
+  PAYMENT_PENDING: 'PAYMENT_PENDING',
+  PAID: 'PAID',
+  WAIVED: 'WAIVED',
+} as const;
+export type FineStatus = (typeof FineStatus)[keyof typeof FineStatus];
+export const FineStatusSchema = z.nativeEnum(FineStatus);
 
 export const VehicleType = {
   CAR: 'CAR',
@@ -133,4 +146,3 @@ export const NotificationType = {
 } as const;
 export type NotificationType = (typeof NotificationType)[keyof typeof NotificationType];
 export const NotificationTypeSchema = z.nativeEnum(NotificationType);
-

@@ -26,6 +26,10 @@ certs/
 *.p12
 *.pfx
 *.der
+esp32-firmware/include/config.h
+esp32-firmware/.pio/
+infrastructure/mosquitto.passwords
+.secrets/
 
 # IDEs
 .idea/

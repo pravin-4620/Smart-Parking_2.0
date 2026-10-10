@@ -27,6 +27,7 @@ export interface ParkingLocationDetail extends NearbyParkingResponse {
     available: number;
     occupied: number;
     reserved: number;
+    unknown: number;
   };
 }
 

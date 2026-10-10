@@ -2,6 +2,7 @@ import { MobilityIllustration, SkeletonCards } from '../components/ui/MobilityUI
 import React, { useState, useEffect } from 'react';
 import { useNavigate, Link } from 'react-router-dom';
 import { apiClient } from '../services/api.js';
+import { joinParkingRoom, leaveParkingRoom, subscribeToParkingUpdated } from '../services/socket.js';
 import {
   MapPin,
   Compass,
@@ -22,36 +23,55 @@ export const DashboardPage: React.FC = () => {
   const [recentBookings, setRecentBookings] = useState<any[]>([]);
   const [activeSession, setActiveSession] = useState<any | null>(null);
   const [currentLocation, setCurrentLocation] = useState<{ lat: number; lng: number } | null>(null);
+  const [locationError, setLocationError] = useState<string | null>(null);
 
   useEffect(() => {
     fetchDashboardData();
   }, []);
 
+  useEffect(() => {
+    const parkingIds = nearbyParking.map((parking) => parking.parkingId);
+    parkingIds.forEach(joinParkingRoom);
+    const unsubscribe = subscribeToParkingUpdated((update) => {
+      setNearbyParking((current) => current.map((parking) => parking.parkingId === update.parkingLocationId ? {
+        ...parking,
+        totalSlots: update.totalSlots,
+        availableSlots: update.availableSlots,
+        unknownSlots: update.unknownSlots,
+        occupancy: update.occupancyRate,
+        telemetryStatus: update.unknownSlots === update.totalSlots ? 'UNAVAILABLE' : update.unknownSlots > 0 ? 'PARTIAL' : 'LIVE',
+      } : parking));
+    });
+    return () => {
+      unsubscribe();
+      parkingIds.forEach(leaveParkingRoom);
+    };
+  }, [nearbyParking.map((parking) => parking.parkingId).join(',')]);
+
   const fetchDashboardData = async () => {
     try {
       setLoading(true);
 
-      // Default to Bangalore coordinates if geolocation not supported
-      let lat = 12.9716;
-      let lng = 77.5946;
-
-      if (navigator.geolocation) {
-        navigator.geolocation.getCurrentPosition(
+      const nearbyPromise = new Promise<void>((resolve) => {
+        if (navigator.geolocation) {
+          navigator.geolocation.getCurrentPosition(
           (pos) => {
-            lat = pos.coords.latitude;
-            lng = pos.coords.longitude;
+            const lat = pos.coords.latitude;
+            const lng = pos.coords.longitude;
             setCurrentLocation({ lat, lng });
-            loadNearby(lat, lng);
+            void loadNearby(lat, lng).finally(resolve);
           },
           () => {
-            setCurrentLocation({ lat, lng });
-            loadNearby(lat, lng);
-          }
-        );
-      } else {
-        setCurrentLocation({ lat, lng });
-        loadNearby(lat, lng);
-      }
+            setLocationError('Location permission is unavailable. Use Nearby Parking to retry or search all facilities.');
+            resolve();
+          },
+          { timeout: 10000 },
+          );
+        } else {
+          setLocationError('This browser does not support geolocation. You can still view all facilities.');
+          resolve();
+        }
+      });
 
       // Fetch Bookings
       const bookingsRes = await apiClient.get('/reservations?limit=10');
@@ -59,7 +79,7 @@ export const DashboardPage: React.FC = () => {
 
       // Find upcoming booking
       const upcoming = allBookings.find(
-        (b: any) => b.status === 'CONFIRMED' || b.status === 'PENDING_PAYMENT'
+        (b: any) => b.status === 'CONFIRMED' || b.status === 'PENDING_CONFIRMATION'
       );
       setUpcomingBooking(upcoming || null);
       setRecentBookings(allBookings.slice(0, 5));
@@ -69,6 +89,7 @@ export const DashboardPage: React.FC = () => {
       const sessions = sessionsRes.data.data || [];
       const active = sessions.find((s: any) => s.status === 'ACTIVE');
       setActiveSession(active || null);
+      await nearbyPromise;
     } catch (err) {
       console.error('Failed to load dashboard data:', err);
     } finally {
@@ -91,13 +112,14 @@ export const DashboardPage: React.FC = () => {
 
   return (
     <div className="driver-dashboard space-y-8">
+      {locationError && <div role="alert" className="inline-notice"><AlertCircle size={18} />{locationError}</div>}
       <section className="dashboard-hero">
         <div><p className="eyebrow">Your everyday parking, simplified</p><h1>A space for wherever<br />life takes you.</h1><p>Find nearby parking, reserve your next stop, and keep every journey moving.</p>
           <div className="dashboard-actions"><button onClick={() => navigate('/nearby')} className="ui-button ui-button-dark"><Compass size={16} />Explore Nearby</button><button onClick={() => navigate('/booking')} className="ui-button"><Plus size={16} />Quick Reserve</button></div>
         </div><MobilityIllustration />
       </section>
       <section aria-label="Your parking activity" className="activity-row">
-        <div><MapPin size={21} className="mb-4 text-slate-500" /><span className="metric-label">Your location</span><span className="metric-value">{currentLocation ? `${currentLocation.lat.toFixed(4)}° N, ${currentLocation.lng.toFixed(4)}° E` : 'Bengaluru City Center'}</span><span className="metric-detail">Your parking search starts here</span></div>
+        <div><MapPin size={21} className="mb-4 text-slate-500" /><span className="metric-label">Your location</span><span className="metric-value">{currentLocation ? `${currentLocation.lat.toFixed(4)}° N, ${currentLocation.lng.toFixed(4)}° E` : 'Location not shared'}</span><span className="metric-detail">Your parking search starts here</span></div>
         <div><CalendarCheck size={21} className="mb-4 text-indigo-600" /><span className="metric-label">Upcoming reservation</span>{upcomingBooking ? <><span className="metric-value">{upcomingBooking.parkingLocationId?.name || 'Smart Parking'}</span><span className="metric-detail">Slot #{upcomingBooking.slotId?.slotNumber || 'Assigned'} · {new Date(upcomingBooking.startTime).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}</span></> : <><span className="metric-value">Your next stop awaits</span><span className="metric-detail">No active upcoming booking</span></>}</div>
         <div><Clock size={21} className="mb-4 text-slate-500" /><span className="metric-label">Current parking session</span>{activeSession ? <><span className="metric-value text-emerald-600">Parked now</span><span className="metric-detail">Entry: {new Date(activeSession.entryTime).toLocaleTimeString()}</span></> : <><span className="metric-value">You're on the move</span><span className="metric-detail">Not parked in any facility</span></>}</div>
       </section>
@@ -189,7 +211,7 @@ export const DashboardPage: React.FC = () => {
                       className={`px-2.5 py-0.5 rounded-full text-xs font-bold ${
                         b.status === 'CONFIRMED'
                           ? 'bg-emerald-50 text-emerald-700 border border-emerald-200'
-                          : b.status === 'PENDING_PAYMENT'
+                          : b.status === 'PENDING_CONFIRMATION'
                           ? 'bg-amber-50 text-amber-700 border border-amber-200'
                           : 'bg-slate-100 text-slate-600'
                       }`}

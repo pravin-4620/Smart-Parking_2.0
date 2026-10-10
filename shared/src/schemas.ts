@@ -1,64 +1,120 @@
-import { z } from 'zod';
-import { UserRole } from './enums.js';
+import { z } from "zod";
+import { UserRole } from "./enums.js";
 
-export const registerSchema = z.object({
-  name: z.string().min(2, 'Name must be at least 2 characters').max(100),
-  email: z.string().email('Invalid email address'),
-  password: z.string().min(6, 'Password must be at least 6 characters'),
-  phone: z.string().optional(),
-  role: z.nativeEnum(UserRole).optional().default(UserRole.USER),
-});
+const telemetryTimestampSchema = z.union([
+  z.string().datetime(),
+  z.number().finite().nonnegative(),
+]);
+
+export const iotTelemetrySchema = z
+  .object({
+    deviceId: z
+      .string()
+      .trim()
+      .min(1)
+      .max(128)
+      .regex(/^[A-Za-z0-9._:-]+$/),
+    parkingId: z.string().trim().min(1).max(128).optional(),
+    parkingLocationId: z.string().trim().min(1).max(128).optional(),
+    timestamp: telemetryTimestampSchema,
+    slots: z
+      .array(
+        z
+          .object({
+            slotId: z.string().trim().min(1).max(128),
+            occupied: z.boolean(),
+          })
+          .strict(),
+      )
+      .min(1)
+      .max(64)
+      .optional(),
+    rfidCard: z.string().trim().min(4).max(64).optional(),
+    rfidUid: z.string().trim().min(4).max(64).optional(),
+    eventType: z.enum(["ENTRY", "EXIT"]).optional(),
+    heartbeatOnly: z.boolean().optional(),
+    firmwareVersion: z.string().trim().max(64).optional(),
+    authorizationStatus: z.enum(["AUTHORIZED", "DENIED"]).optional(),
+    scannedSlotId: z.string().trim().min(1).max(128).optional(),
+    scanId: z.string().trim().min(1).max(128).optional(),
+  })
+  .strict()
+  .superRefine((value, ctx) => {
+    if (!value.parkingId && !value.parkingLocationId) {
+      ctx.addIssue({
+        code: z.ZodIssueCode.custom,
+        message: "parkingId is required",
+      });
+    }
+    const isHeartbeat = value.heartbeatOnly === true;
+    const isRfid = Boolean(value.rfidUid);
+    if (!isHeartbeat && !isRfid && !value.slots) {
+      ctx.addIssue({ code: z.ZodIssueCode.custom, message: "slots are required for occupancy telemetry" });
+    }
+  });
+
+export const registerSchema = z
+  .object({
+    name: z.string().min(2, "Name must be at least 2 characters").max(100),
+    email: z.string().email("Invalid email address"),
+    password: z.string().min(6, "Password must be at least 6 characters"),
+    phone: z.string().optional(),
+    vehicleRegistrationNumber: z.string()
+      .transform((value) => value.toUpperCase().replace(/[^A-Z0-9]/g, ""))
+      .refine((value) => /^[A-Z]{2}\d{1,2}[A-Z]{1,3}\d{4}$/.test(value), "Enter a valid Indian vehicle registration number"),
+  })
+  .strip();
 
 export const loginSchema = z.object({
-  email: z.string().email('Invalid email address'),
-  password: z.string().min(1, 'Password is required'),
+  email: z.string().email("Invalid email address"),
+  password: z.string().min(1, "Password is required"),
 });
 
 export const forgotPasswordSchema = z.object({
-  email: z.string().email('Invalid email address'),
+  email: z.string().email("Invalid email address"),
 });
 
 export const resetPasswordSchema = z.object({
-  token: z.string().min(1, 'Token is required'),
-  newPassword: z.string().min(6, 'Password must be at least 6 characters'),
+  token: z.string().min(1, "Token is required"),
+  newPassword: z.string().min(6, "Password must be at least 6 characters"),
 });
 
 export const updateProfileSchema = z.object({
-  name: z.string().min(2, 'Name must be at least 2 characters').optional(),
+  name: z.string().min(2, "Name must be at least 2 characters").optional(),
   phone: z.string().optional(),
 });
 
 export const changePasswordSchema = z.object({
-  currentPassword: z.string().min(1, 'Current password is required'),
-  newPassword: z.string().min(6, 'New password must be at least 6 characters'),
+  currentPassword: z.string().min(1, "Current password is required"),
+  newPassword: z.string().min(6, "New password must be at least 6 characters"),
 });
 
-export const registerRFIDCardSchema = z.object({
-  uid: z.string().min(4, 'RFID UID must be at least 4 hex characters').max(32),
-});
+export const registerRFIDCardSchema = z.object({}).strict();
 
 export const rfidTapSchema = z.object({
   deviceId: z.string().optional(),
-  parkingLocationId: z.string().min(1, 'Parking Location ID is required'),
-  rfidUid: z.string().min(4, 'RFID UID is required'),
-  eventType: z.enum(['ENTRY', 'EXIT', 'UNKNOWN', 'DENIED', 'CHECK_IN', 'CHECK_OUT']).optional(),
+  parkingLocationId: z.string().min(1, "Parking Location ID is required"),
+  rfidUid: z.string().min(4, "RFID UID is required"),
+  eventType: z
+    .enum(["ENTRY", "EXIT", "UNKNOWN", "DENIED", "CHECK_IN", "CHECK_OUT"])
+    .optional(),
   timestamp: z.union([z.number(), z.string()]).optional(),
 });
 
 export const calculatePricingSchema = z.object({
-  parkingLocationId: z.string().min(1, 'parkingLocationId is required'),
+  parkingLocationId: z.string().min(1, "parkingLocationId is required"),
   slotId: z.string().optional(),
   slotType: z.string().optional(),
-  startTime: z.string().min(1, 'startTime is required'),
-  endTime: z.string().min(1, 'endTime is required'),
+  startTime: z.string().min(1, "startTime is required"),
+  endTime: z.string().min(1, "endTime is required"),
   vehicleType: z.string().optional(),
 });
 
 export const createReservationSchema = z.object({
-  parkingLocationId: z.string().min(1, 'parkingLocationId is required'),
+  parkingLocationId: z.string().min(1, "parkingLocationId is required"),
   slotId: z.string().optional(),
-  startTime: z.string().min(1, 'startTime is required'),
-  endTime: z.string().min(1, 'endTime is required'),
+  startTime: z.string().min(1, "startTime is required"),
+  endTime: z.string().min(1, "endTime is required"),
   vehicleId: z.string().optional(),
   vehicleNumber: z.string().optional(),
   autoAssign: z.boolean().optional(),
@@ -66,18 +122,18 @@ export const createReservationSchema = z.object({
 });
 
 export const autoAllocateSlotSchema = z.object({
-  parkingLocationId: z.string().min(1, 'parkingLocationId is required'),
-  startTime: z.string().min(1, 'startTime is required'),
-  endTime: z.string().min(1, 'endTime is required'),
+  parkingLocationId: z.string().min(1, "parkingLocationId is required"),
+  startTime: z.string().min(1, "startTime is required"),
+  endTime: z.string().min(1, "endTime is required"),
   slotType: z.string().optional(),
   preferredSlotId: z.string().optional(),
 });
 
 export const createParkingLocationSchema = z.object({
-  name: z.string().min(2, 'Name is required'),
+  name: z.string().min(2, "Name is required"),
   description: z.string().optional(),
-  address: z.string().min(1, 'Address is required'),
-  city: z.string().min(1, 'City is required'),
+  address: z.string().min(1, "Address is required"),
+  city: z.string().min(1, "City is required"),
   state: z.string().optional(),
   country: z.string().optional(),
   postalCode: z.string().optional(),
@@ -85,7 +141,7 @@ export const createParkingLocationSchema = z.object({
   longitude: z.number().optional(),
   geoLocation: z
     .object({
-      type: z.literal('Point').default('Point'),
+      type: z.literal("Point").default("Point"),
       coordinates: z.tuple([z.number(), z.number()]),
     })
     .optional(),
@@ -101,10 +157,11 @@ export const createParkingLocationSchema = z.object({
   managerIds: z.array(z.string()).optional(),
 });
 
-export const updateParkingLocationSchema = createParkingLocationSchema.partial();
+export const updateParkingLocationSchema =
+  createParkingLocationSchema.partial();
 
 export const createParkingSlotSchema = z.object({
-  slotNumber: z.string().min(1, 'Slot number is required'),
+  slotNumber: z.string().min(1, "Slot number is required"),
   slotType: z.string().optional(),
   floor: z.number().optional(),
   status: z.string().optional(),
@@ -117,15 +174,15 @@ export const createBatchParkingSlotsSchema = z.object({
 
 export const updateParkingSlotSchema = createParkingSlotSchema.partial();
 
-export const createPaymentOrderSchema = z.object({
-  reservationId: z.string().min(1, 'reservationId is required'),
-});
-
-export const verifyPaymentSchema = z.object({
-  razorpayOrderId: z.string().min(1, 'razorpayOrderId is required'),
-  razorpayPaymentId: z.string().min(1, 'razorpayPaymentId is required'),
-  razorpaySignature: z.string().min(1, 'razorpaySignature is required'),
-  reservationId: z.string().min(1, 'reservationId is required'),
+export const reservationStateAckSchema = z.object({
+  schemaVersion: z.literal(1),
+  commandId: z.string().min(1).max(128),
+  revision: z.number().int().nonnegative(),
+  timestamp: z.union([z.string(), z.number()]),
+  deviceId: z.string().min(1).max(128),
+  parkingId: z.string().min(1).max(128),
+  applied: z.boolean(),
+  reason: z.string().max(256).optional(),
 });
 
 export type RegisterInput = z.infer<typeof registerSchema>;
@@ -137,8 +194,12 @@ export type ChangePasswordInput = z.infer<typeof changePasswordSchema>;
 export type CalculatePricingInput = z.infer<typeof calculatePricingSchema>;
 export type CreateReservationInput = z.infer<typeof createReservationSchema>;
 export type AutoAllocateSlotInput = z.infer<typeof autoAllocateSlotSchema>;
-export type CreateParkingLocationInput = z.infer<typeof createParkingLocationSchema>;
-export type UpdateParkingLocationInput = z.infer<typeof updateParkingLocationSchema>;
+export type CreateParkingLocationInput = z.infer<
+  typeof createParkingLocationSchema
+>;
+export type UpdateParkingLocationInput = z.infer<
+  typeof updateParkingLocationSchema
+>;
 export type CreateParkingSlotInput = z.infer<typeof createParkingSlotSchema> & {
   sensorId?: string;
   deviceId?: string;
@@ -148,8 +209,6 @@ export type UpdateParkingSlotInput = z.infer<typeof updateParkingSlotSchema> & {
   deviceId?: string;
   maintenanceReason?: string;
 };
-export type CreatePaymentOrderInput = z.infer<typeof createPaymentOrderSchema>;
-export type VerifyPaymentInput = z.infer<typeof verifyPaymentSchema>;
 
 export interface ListReservationsQueryInput {
   status?: string;
@@ -176,4 +235,6 @@ export interface AuthResponse {
   };
   accessToken: string;
   refreshToken?: string;
+  vehicleRegistrationNumber?: string;
+  rfidAssignment?: { status: 'ASSIGNED' | 'PENDING'; uid?: string };
 }

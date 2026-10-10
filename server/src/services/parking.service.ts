@@ -6,6 +6,8 @@ import { Reservation } from '../models/reservation.model.js';
 import { ParkingSession } from '../models/parkingSession.model.js';
 import { User } from '../models/user.model.js';
 import { Vehicle } from '../models/vehicle.model.js';
+import { IoTDevice } from '../models/ioTDevice.model.js';
+import { env } from '../config/env.js';
 import {
   CreateParkingLocationInput,
   UpdateParkingLocationInput,
@@ -77,6 +79,14 @@ export const getNearbyParkingLocations = async (
         as: 'pricing',
       },
     },
+    {
+      $lookup: {
+        from: 'reservations',
+        let: { locationId: '$_id' },
+        pipeline: [{ $match: { $expr: { $eq: ['$parkingLocationId', '$$locationId'] }, status: { $in: [ReservationStatus.CONFIRMED, ReservationStatus.ACTIVE, ReservationStatus.CHECKOUT_PENDING] }, endTime: { $gt: new Date() } } }],
+        as: 'blockingReservations',
+      },
+    },
   ];
 
   const locations = await ParkingLocation.aggregate(pipeline);
@@ -88,9 +98,15 @@ export const getNearbyParkingLocations = async (
     }
 
     const activeSlots = slots.filter((s: any) => s.isActive !== false);
+    const blockedSlotIds = new Set((loc.blockingReservations || []).map((reservation: any) => reservation.slotId.toString()));
+    const occupiedSessionSlotIds = new Set((loc.blockingReservations || []).filter((reservation: any) => reservation.status === ReservationStatus.ACTIVE || reservation.status === ReservationStatus.CHECKOUT_PENDING).map((reservation: any) => reservation.slotId.toString()));
     const totalSlots = activeSlots.length;
-    const availableSlots = activeSlots.filter((s: any) => s.status === SlotStatus.AVAILABLE).length;
-    const occupancy = totalSlots > 0 ? Math.round(((totalSlots - availableSlots) / totalSlots) * 100) : 0;
+    const availableSlots = activeSlots.filter((s: any) => s.status !== SlotStatus.UNKNOWN && !blockedSlotIds.has(s._id.toString())).length;
+    const occupiedSlots = activeSlots.filter((s: any) => occupiedSessionSlotIds.has(s._id.toString())).length;
+    const unknownSlots = activeSlots.filter((s: any) => s.status === SlotStatus.UNKNOWN).length;
+    const knownPhysicalSlots = availableSlots + occupiedSlots;
+    const occupancy = knownPhysicalSlots > 0 ? Math.round((occupiedSlots / knownPhysicalSlots) * 100) : null;
+    const telemetryStatus = unknownSlots === totalSlots ? 'UNAVAILABLE' : unknownSlots > 0 ? 'PARTIAL' : 'LIVE';
 
     const pricing = loc.pricing && loc.pricing.length > 0 ? loc.pricing[0] : null;
     const startingPrice = pricing ? pricing.baseHourlyRate : 40;
@@ -107,7 +123,9 @@ export const getNearbyParkingLocations = async (
       coordinates: loc.geoLocation.coordinates,
       availableSlots,
       totalSlots,
+      unknownSlots,
       occupancy,
+      telemetryStatus,
       startingPrice,
       status: loc.status || ParkingStatus.ACTIVE,
       operatingStatus: isLocationOpen(loc.operatingHours),
@@ -128,12 +146,14 @@ export const getParkingLocationById = async (id: string) => {
   }
 
   const slots = await ParkingSlot.find({ parkingLocationId: id }).lean();
+  const blockedSlotIds = new Set((await Reservation.distinct('slotId', { parkingLocationId: id, status: { $in: [ReservationStatus.CONFIRMED, ReservationStatus.ACTIVE, ReservationStatus.CHECKOUT_PENDING] } })).map((slotId) => slotId.toString()));
   const pricingProfile = await PricingProfile.findOne({ parkingLocationId: id, isActive: true }).lean();
 
   const totalSlots = slots.length;
-  const availableSlots = slots.filter((s) => s.status === SlotStatus.AVAILABLE && s.isActive).length;
+  const availableSlots = slots.filter((s) => s.status === SlotStatus.AVAILABLE && !blockedSlotIds.has(s._id.toString()) && s.isActive).length;
   const occupiedSlots = slots.filter((s) => s.status === SlotStatus.OCCUPIED && s.isActive).length;
-  const reservedSlots = slots.filter((s) => s.status === SlotStatus.RESERVED && s.isActive).length;
+  const reservedSlots = slots.filter((s) => blockedSlotIds.has(s._id.toString()) && s.isActive).length;
+  const unknownSlots = slots.filter((s) => s.status === SlotStatus.UNKNOWN && s.isActive).length;
 
   return {
     ...location,
@@ -146,6 +166,7 @@ export const getParkingLocationById = async (id: string) => {
       available: availableSlots,
       occupied: occupiedSlots,
       reserved: reservedSlots,
+      unknown: unknownSlots,
     },
   };
 };
@@ -219,9 +240,47 @@ export const deleteParkingLocation = async (id: string) => {
 };
 
 export const getSlotsByLocation = async (locationId: string) => {
-  return ParkingSlot.find({ parkingLocationId: locationId })
-    .select('_id parkingLocationId slotNumber status slotType isActive sensorId lastSensorUpdate')
-    .sort({ slotNumber: 1 });
+  const slots = await ParkingSlot.find({ parkingLocationId: locationId })
+    .select('_id parkingLocationId slotNumber status slotType isActive sensorId deviceId lastSensorUpdate currentReservationId')
+    .sort({ slotNumber: 1 }).lean();
+  const blockingReservations = await Reservation.find({
+    parkingLocationId: locationId,
+    endTime: { $gt: new Date() },
+    status: { $in: [ReservationStatus.PENDING_CONFIRMATION, ReservationStatus.PENDING_PAYMENT, ReservationStatus.PAYMENT_FAILED, ReservationStatus.CONFIRMED, ReservationStatus.ACTIVE, ReservationStatus.CHECKOUT_PENDING] },
+  }).select('slotId status').lean();
+  const reservationBySlot = new Map(blockingReservations.map((reservation) => [reservation.slotId.toString(), reservation.status]));
+  const devices = await IoTDevice.find({ parkingLocationId: locationId, isActive: true }).select('_id deviceId status lastHeartbeat lastMessageAt').lean();
+  const deviceById = new Map(devices.map((device) => [device._id.toString(), device]));
+  const now = Date.now();
+  return slots.map(({ currentReservationId, ...slot }) => ({
+    ...slot,
+    ...(() => {
+      const reservationStatus = reservationBySlot.get(slot._id.toString());
+      const device = slot.deviceId ? deviceById.get(slot.deviceId.toString()) : undefined;
+      const telemetryFresh = Boolean(slot.lastSensorUpdate && now - slot.lastSensorUpdate.getTime() <= env.SENSOR_FRESHNESS_MS);
+      const physicalStatus = !device || device.status !== 'ONLINE' || !telemetryFresh ? SlotStatus.UNKNOWN : slot.status;
+      const reservationBlocked = reservationStatus === ReservationStatus.PENDING_CONFIRMATION || reservationStatus === ReservationStatus.CONFIRMED || reservationStatus === ReservationStatus.ACTIVE || reservationStatus === ReservationStatus.CHECKOUT_PENDING;
+      const displayStatus = reservationStatus === ReservationStatus.ACTIVE || reservationStatus === ReservationStatus.CHECKOUT_PENDING
+        ? SlotStatus.OCCUPIED
+        : reservationBlocked
+          ? SlotStatus.RESERVED
+          : physicalStatus === SlotStatus.UNKNOWN ? SlotStatus.UNKNOWN : SlotStatus.AVAILABLE;
+      const bookingBlocked = Boolean(reservationStatus);
+      const available = slot.isActive && physicalStatus !== SlotStatus.UNKNOWN && !bookingBlocked;
+      return {
+        physicalStatus,
+        reservationStatus: reservationStatus ?? null,
+        reservationBlocked,
+        bookingBlocked,
+        deviceId: device?.deviceId ?? null,
+        deviceStatus: device?.status ?? 'OFFLINE',
+        lastTelemetryAt: slot.lastSensorUpdate?.toISOString() ?? null,
+        telemetryFresh,
+        available,
+        status: displayStatus,
+      };
+    })(),
+  }));
 };
 
 export const getAuthorizedSlotsByLocation = async (
@@ -238,26 +297,15 @@ export const getAuthorizedSlotsByLocation = async (
 
   // 1. Fetch active/confirmed reservations for these slots
   const reservationFilter: Record<string, any> = {
-    $or: [
-      {
-        slotId: { $in: slotIds },
-        status: {
-          $in: [
-            ReservationStatus.CONFIRMED,
-            ReservationStatus.PENDING_PAYMENT,
-            ReservationStatus.ACTIVE,
-          ],
-        },
-      },
-      { _id: { $in: slots.map((s) => s.currentReservationId).filter(Boolean) } },
-    ],
+    slotId: { $in: slotIds },
+    status: { $in: [ReservationStatus.PENDING_CONFIRMATION, ReservationStatus.CONFIRMED, ReservationStatus.PENDING_PAYMENT, ReservationStatus.ACTIVE, ReservationStatus.CHECKOUT_PENDING] },
   };
   const reservations = await Reservation.find(reservationFilter).sort({ createdAt: -1 }).lean();
 
   // 2. Fetch active sessions for these slots
   const sessions = await ParkingSession.find({
     slotId: { $in: slotIds },
-    status: SessionStatus.ACTIVE,
+    status: { $in: [SessionStatus.ACTIVE, SessionStatus.CHECKOUT_PENDING, SessionStatus.OVERSTAY] },
   })
     .sort({ checkInTime: -1 })
     .lean();
@@ -318,18 +366,6 @@ export const getAuthorizedSlotsByLocation = async (
       slotReservationMap.set(sId, r);
     }
   });
-  // Check slot.currentReservationId as authoritative link
-  slots.forEach((slot) => {
-    if (slot.currentReservationId) {
-      const matched = reservations.find(
-        (r) => r._id.toString() === slot.currentReservationId?.toString()
-      );
-      if (matched) {
-        slotReservationMap.set(slot._id.toString(), matched);
-      }
-    }
-  });
-
   // Map session per slot
   const slotSessionMap = new Map<string, any>();
   sessions.forEach((s) => {
@@ -449,7 +485,7 @@ export const createParkingSlot = async (
     sensorId: input.sensorId,
     deviceId: input.deviceId ? new Types.ObjectId(input.deviceId) : undefined,
     isActive: input.isActive ?? true,
-    status: SlotStatus.AVAILABLE,
+    status: SlotStatus.UNKNOWN,
   });
 };
 
@@ -479,7 +515,7 @@ export const createBatchParkingSlots = async (
       parkingLocationId: location._id,
       slotNumber,
       slotType: slotType || 'REGULAR',
-      status: SlotStatus.AVAILABLE,
+      status: SlotStatus.UNKNOWN,
       isActive: true,
     });
   }

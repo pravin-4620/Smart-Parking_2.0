@@ -1,7 +1,15 @@
-import { UserRole, SlotStatus, ReservationStatus, PaymentStatus, ParkingStatus, DeviceStatus } from './enums.js';
+import {
+  UserRole,
+  SlotStatus,
+  ReservationStatus,
+  PaymentStatus,
+  ParkingStatus,
+  DeviceStatus,
+  FineStatus,
+} from "./enums.js";
 
 export interface HealthCheckResponse {
-  status: 'ok' | 'degraded' | 'error';
+  status: "ok" | "degraded" | "error";
   timestamp: string;
   uptime: number;
   services: {
@@ -50,7 +58,7 @@ export interface TelemetryPayload {
   };
   rfidCard?: string;
   rfidUid?: string;
-  eventType?: 'ENTRY' | 'EXIT';
+  eventType?: "ENTRY" | "EXIT";
 }
 
 export interface IoTTelemetryPayload {
@@ -64,9 +72,63 @@ export interface IoTTelemetryPayload {
   occupied?: boolean;
   rfidCard?: string;
   rfidUid?: string;
-  eventType?: 'ENTRY' | 'EXIT';
+  eventType?: "ENTRY" | "EXIT";
   heartbeatOnly?: boolean;
   isOffline?: boolean;
+  firmwareVersion?: string;
+  authorizationStatus?: "AUTHORIZED" | "DENIED";
+  scannedSlotId?: string;
+  scanId?: string;
+}
+
+export interface ReservationStateCommand {
+  schemaVersion: 1;
+  commandId: string;
+  revision: number;
+  issuedAt: string;
+  deviceId: string;
+  parkingId: string;
+  slots: Array<{
+    slotId: string;
+    reservationId?: string;
+    sessionId?: string;
+    reservationBlocked: boolean;
+    indicatorState: 'AVAILABLE' | 'RESERVED' | 'ACTIVE';
+  }>;
+}
+
+export interface ReservationStateAck {
+  schemaVersion: 1;
+  commandId: string;
+  revision: number;
+  timestamp: string;
+  deviceId: string;
+  parkingId: string;
+  applied: boolean;
+  reason?: string;
+}
+
+export interface OverstayFineSummary {
+  id: string;
+  sessionId: string;
+  reservationId: string;
+  overstayMinutes: number;
+  amount: number;
+  currency: string;
+  status: FineStatus;
+  calculatedAt: string;
+}
+
+export interface ParkingUpdatedEvent {
+  parkingLocationId: string;
+  totalSlots: number;
+  availableSlots: number;
+  occupiedSlots: number;
+  reservedSlots: number;
+  maintenanceSlots: number;
+  unknownSlots: number;
+  occupancyRate: number | null;
+  updatedAt?: string;
 }
 
 export interface NearbyParkingResponse {
@@ -79,10 +141,12 @@ export interface NearbyParkingResponse {
   coordinates: [number, number];
   availableSlots: number;
   totalSlots: number;
-  occupancy: number;
+  unknownSlots: number;
+  occupancy: number | null;
+  telemetryStatus: "LIVE" | "PARTIAL" | "UNAVAILABLE";
   startingPrice: number;
   status: ParkingStatus;
-  operatingStatus: 'OPEN' | 'CLOSED';
+  operatingStatus: "OPEN" | "CLOSED";
   operatingHours: { openTime: string; closeTime: string; is24x7: boolean };
   features: string[];
 }
@@ -150,31 +214,6 @@ export interface PricingCalculationResult {
   pricingRuleVersion: number;
 }
 
-export interface RazorpayOrderResponse {
-  orderId: string;
-  amount: number;
-  currency: string;
-  keyId: string;
-  reservationId: string;
-}
-
-export interface PaymentReceipt {
-  receiptId: string;
-  transactionId: string;
-  razorpayPaymentId: string;
-  amount: number;
-  currency: string;
-  status: PaymentStatus;
-  createdAt: string;
-  reservationDetails: {
-    id: string;
-    parkingName: string;
-    slotNumber: string;
-    startTime: string;
-    endTime: string;
-  };
-}
-
 export interface PredictionPoint {
   time: string;
   hourLabel: string;
@@ -182,7 +221,7 @@ export interface PredictionPoint {
   predictedOccupiedSlots: number;
   predictedAvailableSlots: number;
   confidenceScore: number;
-  demandFactor: 'LOW' | 'MODERATE' | 'HIGH' | 'CRITICAL';
+  demandFactor: "LOW" | "MODERATE" | "HIGH" | "CRITICAL";
 }
 
 export interface ParkingPredictionResult {
@@ -195,7 +234,7 @@ export interface ParkingPredictionResult {
   horizonHours: number;
   generatedAt: string;
   modelVersion: string;
-  modelType: 'BASELINE' | 'ML_STUB' | 'ML_FUTURE';
+  modelType: "BASELINE" | "ML_STUB" | "ML_FUTURE";
   predictions: PredictionPoint[];
   historicalSampleCount: number;
 }

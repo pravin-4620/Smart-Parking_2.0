@@ -17,11 +17,12 @@ export const ManagerDevicesPage: React.FC = () => {
           <div key={d._id} className="bg-white p-5 rounded-2xl border border-slate-200 shadow-sm space-y-2">
             <div className="flex justify-between items-center">
               <h3 className="font-bold text-slate-800 text-sm">{d.deviceId}</h3>
-              <span className="px-2 py-0.5 bg-emerald-100 text-emerald-800 font-bold text-[10px] rounded-full">{d.status}</span>
+              <span className={`px-2 py-0.5 font-bold text-[10px] rounded-full ${d.status === 'ONLINE' ? 'bg-emerald-100 text-emerald-800' : 'bg-slate-200 text-slate-700'}`}>{d.status}</span>
             </div>
             <p className="text-xs text-slate-500">{d.name}</p>
             <p className="text-xs text-slate-500">{d.parkingLocationId?.name ?? 'Assigned facility'}</p>
             <p className="text-[10px] text-slate-400 font-mono">Last Heartbeat: {d.lastHeartbeat ? new Date(d.lastHeartbeat).toLocaleString() : 'Not reported'}</p>
+            <p className="text-[10px] text-slate-400 font-mono">Reservation state: {d.lastAckRevision === d.lastCommandRevision && d.lastAckRevision ? `Applied r${d.lastAckRevision}` : d.lastCommandRevision ? `Awaiting device ack for r${d.lastCommandRevision}` : 'Not synchronized'}</p>
           </div>
         ))}
       </div>

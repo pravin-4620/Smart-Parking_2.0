@@ -5,6 +5,10 @@ import { ParkingSlot } from '../models/parkingSlot.model.js';
 import { LockService } from './lock.service.js';
 import { PricingService } from './pricing.service.js';
 import { AllocationService } from './allocation.service.js';
+import { IoTDevice } from '../models/ioTDevice.model.js';
+import { env } from '../config/env.js';
+import { ReservationStateService } from '../iot/reservationState.service.js';
+import { emitReservationUpdated } from '../sockets/index.js';
 import {
   CreateReservationInput,
   ListReservationsQueryInput,
@@ -15,9 +19,7 @@ import {
 } from '@smart-parking/shared';
 
 export class ReservationService {
-  /**
-   * Create a reservation in PENDING_PAYMENT status with fast-path distributed concurrency locks
-   */
+  /** Create a validated reservation under the configured confirmation policy. */
   public static async createReservation(
     input: CreateReservationInput,
     userId: string
@@ -31,6 +33,11 @@ export class ReservationService {
 
     if (end <= start) {
       throw new Error('endTime must be after startTime');
+    }
+    if (start.getTime() < Date.now() - 30_000) {
+      const error: any = new Error('startTime must be in the future');
+      error.statusCode = 400;
+      throw error;
     }
 
     // Step 1: Validate Parking Location and Operating Hours
@@ -77,18 +84,28 @@ export class ReservationService {
       }
 
       if (
-        slot.status === SlotStatus.OCCUPIED ||
-        slot.status === SlotStatus.MAINTENANCE ||
-        slot.status === SlotStatus.OUT_OF_SERVICE
+        slot.status !== SlotStatus.AVAILABLE
       ) {
         throw new Error(`Slot ${slot.slotNumber} is currently unavailable for booking`);
+      }
+      if (slot.parkingLocationId.toString() !== parkingLocationId || !slot.isActive) {
+        throw new Error('Target parking slot is not active at this parking location');
+      }
+      if (slot.deviceId) {
+        const device = await IoTDevice.findById(slot.deviceId);
+        const sensorFresh = Boolean(slot.lastSensorUpdate && Date.now() - slot.lastSensorUpdate.getTime() <= env.SENSOR_FRESHNESS_MS);
+        if (!device || device.status !== 'ONLINE' || !sensorFresh) {
+          throw new Error(`Slot ${slot.slotNumber} cannot be booked while device or occupancy data is offline, stale, or unknown`);
+        }
       }
 
       // Overlap Query across active reservation statuses
       const activeStatuses = [
+        ReservationStatus.PENDING_CONFIRMATION,
         ReservationStatus.PENDING_PAYMENT,
         ReservationStatus.CONFIRMED,
         ReservationStatus.ACTIVE,
+        ReservationStatus.PAYMENT_FAILED,
       ];
 
       const overlappingReservation = await Reservation.findOne({
@@ -116,8 +133,10 @@ export class ReservationService {
 
       const durationMinutes = Math.round((end.getTime() - start.getTime()) / (1000 * 60));
 
-      // Step 6: Create Pending Reservation with 15-minute expiry
-      const expiresAt = new Date(Date.now() + 15 * 60 * 1000); // 15 mins TTL
+      // Local demonstration may explicitly bypass operational confirmation. This
+      // does not create a payment or weaken the RFID authorization checks.
+      const autoConfirm = env.NODE_ENV !== 'production' && env.LOCAL_DEMO_AUTO_CONFIRM;
+      const expiresAt = autoConfirm ? end : new Date(Date.now() + 15 * 60 * 1000);
 
       const reservation = await Reservation.create({
         userId: new Types.ObjectId(userId),
@@ -127,7 +146,7 @@ export class ReservationService {
         startTime: start,
         endTime: end,
         duration: durationMinutes,
-        status: ReservationStatus.PENDING_PAYMENT,
+        status: autoConfirm ? ReservationStatus.CONFIRMED : ReservationStatus.PENDING_CONFIRMATION,
         pricingSnapshot: {
           baseRate: pricingResult.baseAmount,
           hourlyRate: pricingResult.effectiveHourlyRate,
@@ -139,10 +158,16 @@ export class ReservationService {
         expiresAt,
       });
 
+      if (autoConfirm) {
+        await ParkingSlot.updateOne({ _id: targetSlotId }, { $set: { currentReservationId: reservation._id } });
+        await ReservationStateService.publishForSlot(targetSlotId);
+      }
+      emitReservationUpdated({ reservationId: reservation._id.toString(), userId: reservation.userId.toString(), parkingLocationId: reservation.parkingLocationId.toString(), slotId: reservation.slotId.toString(), status: reservation.status });
+
       return reservation;
     } finally {
       // Step 7: Release lock
-      await LockService.releaseLock(targetSlotId);
+      await LockService.releaseLock(targetSlotId, lockAcquired);
     }
   }
 
@@ -167,6 +192,11 @@ export class ReservationService {
       err.statusCode = 403;
       throw err;
     }
+    if (role === UserRole.PARKING_MANAGER && !(await ParkingLocation.exists({ _id: reservation.parkingLocationId, managerIds: userId }))) {
+      const err: any = new Error('Forbidden: Reservation belongs to an unassigned facility');
+      err.statusCode = 403;
+      throw err;
+    }
 
     return reservation;
   }
@@ -184,6 +214,9 @@ export class ReservationService {
 
     if (role === UserRole.USER) {
       filter.userId = new Types.ObjectId(userId);
+    } else if (role === UserRole.PARKING_MANAGER) {
+      const assigned = await ParkingLocation.find({ managerIds: userId }).select('_id').lean();
+      filter.parkingLocationId = { $in: assigned.map((location) => location._id) };
     }
 
     if (status) {
@@ -191,6 +224,14 @@ export class ReservationService {
     }
 
     if (parkingLocationId) {
+      if (role === UserRole.PARKING_MANAGER) {
+        const assignedIds = (filter.parkingLocationId?.$in || []) as Types.ObjectId[];
+        if (!assignedIds.some((id) => id.toString() === parkingLocationId)) {
+          const error: any = new Error('Forbidden: Parking facility is not assigned to this manager');
+          error.statusCode = 403;
+          throw error;
+        }
+      }
       filter.parkingLocationId = new Types.ObjectId(parkingLocationId);
     }
 
@@ -227,6 +268,11 @@ export class ReservationService {
       err.statusCode = 403;
       throw err;
     }
+    if (role === UserRole.PARKING_MANAGER && !(await ParkingLocation.exists({ _id: reservation.parkingLocationId, managerIds: userId }))) {
+      const err: any = new Error('Forbidden: Reservation belongs to an unassigned facility');
+      err.statusCode = 403;
+      throw err;
+    }
 
     if (
       reservation.status === ReservationStatus.COMPLETED ||
@@ -240,12 +286,35 @@ export class ReservationService {
 
     // Reset ParkingSlot if it was marked reserved by this reservation
     if (reservation.slotId) {
-      await ParkingSlot.findByIdAndUpdate(reservation.slotId, {
-        $set: { status: SlotStatus.AVAILABLE },
-        $unset: { currentReservationId: 1 },
-      });
+      await ParkingSlot.updateOne({ _id: reservation.slotId, currentReservationId: reservation._id }, { $unset: { currentReservationId: 1 } });
+      await ReservationStateService.publishForSlot(reservation.slotId.toString());
     }
 
+    emitReservationUpdated({ reservationId: reservation._id.toString(), userId: reservation.userId.toString(), parkingLocationId: reservation.parkingLocationId.toString(), slotId: reservation.slotId.toString(), status: reservation.status });
+
+    return reservation;
+  }
+
+  public static async confirmReservation(reservationId: string, userId: string, role: UserRole): Promise<IReservation> {
+    if (role !== UserRole.ADMIN && role !== UserRole.PARKING_MANAGER) {
+      const error: any = new Error('Only an authorized Manager or Admin can confirm a no-payment reservation');
+      error.statusCode = 403;
+      throw error;
+    }
+    const reservation = await Reservation.findById(reservationId);
+    if (!reservation) throw new Error('Reservation not found');
+    if (role === UserRole.PARKING_MANAGER && !(await ParkingLocation.exists({ _id: reservation.parkingLocationId, managerIds: userId }))) {
+      const error: any = new Error('Forbidden: Reservation belongs to an unassigned facility');
+      error.statusCode = 403;
+      throw error;
+    }
+    if (reservation.status === ReservationStatus.CONFIRMED) return reservation;
+    if (reservation.status !== ReservationStatus.PENDING_CONFIRMATION) throw new Error(`Cannot confirm reservation in ${reservation.status} state`);
+    reservation.status = ReservationStatus.CONFIRMED;
+    await reservation.save();
+    await ParkingSlot.updateOne({ _id: reservation.slotId }, { $set: { currentReservationId: reservation._id } });
+    await ReservationStateService.publishForSlot(reservation.slotId.toString());
+    emitReservationUpdated({ reservationId: reservation._id.toString(), userId: reservation.userId.toString(), parkingLocationId: reservation.parkingLocationId.toString(), slotId: reservation.slotId.toString(), status: reservation.status });
     return reservation;
   }
 
@@ -254,16 +323,27 @@ export class ReservationService {
    */
   public static async expirePendingReservations(): Promise<number> {
     const now = new Date();
+    const expiring = await Reservation.find({
+      $or: [
+        { status: { $in: [ReservationStatus.PENDING_CONFIRMATION, ReservationStatus.PENDING_PAYMENT, ReservationStatus.PAYMENT_FAILED] }, expiresAt: { $lt: now } },
+        { status: ReservationStatus.CONFIRMED, endTime: { $lt: now } },
+      ],
+    }).select('_id slotId userId parkingLocationId');
+    if (!expiring.length) return 0;
+    const ids = expiring.map((reservation) => reservation._id);
     const result = await Reservation.updateMany(
       {
-        status: ReservationStatus.PENDING_PAYMENT,
-        expiresAt: { $lt: now },
+        _id: { $in: ids },
       },
       {
         $set: { status: ReservationStatus.EXPIRED },
       }
     );
-
+    await Promise.all(expiring.map(async (reservation) => {
+      await ParkingSlot.updateOne({ _id: reservation.slotId, currentReservationId: reservation._id }, { $unset: { currentReservationId: 1 } });
+      await ReservationStateService.publishForSlot(reservation.slotId.toString());
+      emitReservationUpdated({ reservationId: reservation._id.toString(), userId: reservation.userId.toString(), parkingLocationId: reservation.parkingLocationId.toString(), slotId: reservation.slotId.toString(), status: ReservationStatus.EXPIRED });
+    }));
     return result.modifiedCount;
   }
 }

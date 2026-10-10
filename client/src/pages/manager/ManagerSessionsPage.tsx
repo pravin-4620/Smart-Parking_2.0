@@ -4,9 +4,10 @@ import { managerService } from '../../services/managerService.js';
 
 export const ManagerSessionsPage: React.FC = () => {
   const [sessions, setSessions] = useState<any[]>([]);
+  const [fines, setFines] = useState<any[]>([]);
 
   useEffect(() => {
-    managerService.getSessions().then(setSessions).catch(console.error);
+    Promise.all([managerService.getSessions(), managerService.getFines()]).then(([sessionRows, fineRows]) => { setSessions(sessionRows); setFines(fineRows); }).catch(console.error);
   }, []);
 
   return (
@@ -41,6 +42,10 @@ export const ManagerSessionsPage: React.FC = () => {
             ))}
           </tbody>
         </table>
+      </div>
+      <div className="bg-white rounded-2xl border border-slate-200 overflow-hidden">
+        <h2 className="p-4 font-bold text-slate-900 border-b">Overstay fines</h2>
+        {fines.length === 0 ? <p className="p-6 text-sm text-slate-500">No fines for assigned facilities.</p> : <table className="responsive-table w-full text-left text-xs"><thead className="bg-slate-50 border-b"><tr><th className="p-3">Slot</th><th className="p-3">Overstay</th><th className="p-3">Amount</th><th className="p-3">Status</th></tr></thead><tbody>{fines.map((fine) => <tr key={fine._id} className="border-b"><td className="p-3">{fine.slotId?.slotNumber ?? '—'}</td><td className="p-3">{fine.overstayMinutes} min</td><td className="p-3">₹{fine.amount}</td><td className="p-3 font-bold">{fine.status}</td></tr>)}</tbody></table>}
       </div>
     </div>
   );

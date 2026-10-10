@@ -1,14 +1,13 @@
 {
   "name": "@smart-parking/iot-simulator",
   "version": "1.0.0",
-  "description": "ESP32 IoT Hardware Simulator for Smart Parking",
+  "description": "Test-only MQTT publisher for isolated automated environments",
   "type": "module",
   "main": "dist/index.js",
   "scripts": {
     "build": "tsc",
     "typecheck": "tsc --noEmit",
-    "start": "node dist/index.js",
-    "dev": "tsx watch src/index.ts"
+    "test:publish": "NODE_ENV=test IOT_TEST_SIMULATOR_ENABLED=true tsx src/index.ts"
   },
   "dependencies": {
     "@smart-parking/shared": "*",

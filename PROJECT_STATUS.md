@@ -27,7 +27,7 @@
 [ AWS IoT Core / MQTT Broker ]
    ▲                      ▲
    │ (MQTT)               │ (MQTT)
-[ ESP32 Hardware ]     [ IoT Simulator Script ]
+[ Authenticated ESP32 Hardware ]
 ```
 
 ---
@@ -44,8 +44,8 @@
 
 - `backend/`: Express, TypeScript, Mongoose, Socket.IO, Zod validation, JWT/bcrypt, BullMQ/Redis, AWS SDK v3.
 - `frontend/`: React 18/19, Vite, TypeScript, Tailwind CSS, TanStack Query, React Router, Socket.IO Client, Recharts, Framer Motion.
-- `simulator/`: Node.js/TypeScript IoT Simulator tool mimicking ESP32 (publishing identical JSON payloads to AWS IoT Core / MQTT endpoints for IR sensors, RFID scans, LCD status).
-- `docker-compose.yml`: Local infrastructure orchestration (MongoDB, Redis, Local MQTT / AWS IoT mock).
+- `iot-simulator/`: Test-only publisher gated by `NODE_ENV=test`, a separate broker URL, and an explicit enable flag.
+- `docker-compose.yml`: Local infrastructure orchestration (MongoDB, Redis, authenticated Mosquitto).
 
 ---
 
@@ -54,7 +54,7 @@
 - [x] **Phase 0: Project Architecture & Setup** (Repository inspection, architectural blueprint, status tracking setup)
 - [ ] **Phase 1: Project Initialization & Monorepo/Workspace Config** (Package management, tsconfigs, ESLint/Prettier, Docker Compose baseline)
 - [ ] **Phase 2: Backend Core, Database Models & RBAC Authentication** (User/Manager/Admin schemas, JWT auth, Zod validation middleware)
-- [ ] **Phase 3: IoT Ingestion Gateway & Hardware/Simulator MQTT Protocol** (AWS IoT Core integration, MQTT client/simulator, sensor state engine)
+- [x] **Phase 3: Physical IoT Ingestion Gateway** (authenticated MQTT, enrolled device and slot authorization, sensor state engine)
 - [ ] **Phase 4: Real-Time Event Engine & Socket.IO Telemetry** (Real-time slot updates, state changes broadcast to frontend)
 - [ ] **Phase 5: Core Parking Management & Dynamic Allocation Logic** (Parking lots, slots, spatial allocation algorithms, dynamic pricing engine)
 - [ ] **Phase 6: User Reservations, Booking Workflow & Razorpay Sandbox** (Slot hold timer, Razorpay order/payment verification, booking receipts)

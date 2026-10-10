@@ -62,7 +62,7 @@ describe('Phase 6: Reservation & Dynamic Slot Allocation Integration Tests', () 
       });
 
     expect(res.status).toBe(201);
-    expect(res.body.data.status).toBe(ReservationStatus.PENDING_PAYMENT);
+    expect(res.body.data.status).toBe(ReservationStatus.PENDING_CONFIRMATION);
     expect(res.body.data.pricingSnapshot.totalAmount).toBeGreaterThan(0);
   });
 
@@ -176,7 +176,6 @@ describe('Phase 6: Reservation & Dynamic Slot Allocation Integration Tests', () 
     const reservationId = createRes.body.data._id;
 
     await ParkingSlot.findByIdAndUpdate(targetSlotId, {
-      status: SlotStatus.RESERVED,
       currentReservationId: reservationId,
     });
 
@@ -212,7 +211,7 @@ describe('Phase 6: Reservation & Dynamic Slot Allocation Integration Tests', () 
       startTime: new Date(),
       endTime: new Date(Date.now() + 3600000),
       duration: 60,
-      status: ReservationStatus.PENDING_PAYMENT,
+      status: ReservationStatus.PENDING_CONFIRMATION,
       pricingSnapshot: {
         baseRate: 60,
         hourlyRate: 60,

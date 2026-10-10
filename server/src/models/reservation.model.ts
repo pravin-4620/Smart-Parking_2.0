@@ -65,7 +65,7 @@ const reservationSchema = new Schema<IReservation>(
     status: {
       type: String,
       enum: Object.values(ReservationStatus),
-      default: ReservationStatus.PENDING_PAYMENT,
+      default: ReservationStatus.PENDING_CONFIRMATION,
       required: true,
       index: true,
     },

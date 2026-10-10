@@ -10,6 +10,7 @@ export interface IParkingSession extends Document {
   rfidCardId?: Types.ObjectId;
   checkInTime: Date;
   checkOutTime?: Date;
+  exitVerifiedAt?: Date;
   durationMinutes?: number;
   status: SessionStatus;
   overstayMinutes: number;
@@ -41,7 +42,6 @@ const parkingSessionSchema = new Schema<IParkingSession>(
       type: Schema.Types.ObjectId,
       ref: 'ParkingSlot',
       required: true,
-      index: true,
     },
     vehicleId: {
       type: Schema.Types.ObjectId,
@@ -59,6 +59,7 @@ const parkingSessionSchema = new Schema<IParkingSession>(
     checkOutTime: {
       type: Date,
     },
+    exitVerifiedAt: Date,
     durationMinutes: {
       type: Number,
       min: 0,
@@ -86,6 +87,10 @@ const parkingSessionSchema = new Schema<IParkingSession>(
 
 parkingSessionSchema.index({ slotId: 1, status: 1 });
 parkingSessionSchema.index({ userId: 1, status: 1 });
+parkingSessionSchema.index(
+  { slotId: 1 },
+  { name: 'unique_active_session_per_slot', unique: true, partialFilterExpression: { status: { $in: [SessionStatus.ACTIVE, SessionStatus.CHECKOUT_PENDING, SessionStatus.OVERSTAY] } } }
+);
 
 export const ParkingSession: Model<IParkingSession> =
   mongoose.models.ParkingSession || mongoose.model<IParkingSession>('ParkingSession', parkingSessionSchema);

@@ -1,7 +1,8 @@
 import { Redis } from 'ioredis';
+import crypto from 'node:crypto';
 
 // In-memory fallback lock table for when Redis is offline
-const inMemoryLocks = new Map<string, number>();
+const inMemoryLocks = new Map<string, { token: string; expiresAt: number }>();
 
 export class LockService {
   private static redisClient: Redis | null = null;
@@ -16,20 +17,21 @@ export class LockService {
    * @param ttlMs Lock expiry in milliseconds (default: 5000ms)
    * @returns boolean - true if lock acquired, false if locked by another concurrent process
    */
-  public static async acquireLock(resourceKey: string, ttlMs = 5000): Promise<boolean> {
+  public static async acquireLock(resourceKey: string, ttlMs = 5000): Promise<string | null> {
     const lockKey = `lock:${resourceKey}`;
+    const token = crypto.randomUUID();
 
     // Try Redis Lock if available
     if (LockService.redisClient && LockService.redisClient.status === 'ready') {
       try {
         const result = await LockService.redisClient.set(
           lockKey,
-          'locked',
+          token,
           'PX',
           ttlMs,
           'NX'
         );
-        return result === 'OK';
+        return result === 'OK' ? token : null;
       } catch (err) {
         // Fallback to in-memory lock
       }
@@ -37,34 +39,38 @@ export class LockService {
 
     // In-memory atomic mutex implementation
     const now = Date.now();
-    const existingLockTime = inMemoryLocks.get(lockKey);
+    const existingLock = inMemoryLocks.get(lockKey);
 
-    if (existingLockTime && existingLockTime > now) {
+    if (existingLock && existingLock.expiresAt > now) {
       // Lock is currently held by another thread/request
-      return false;
+      return null;
     }
 
     // Acquire lock with TTL expiry timestamp
-    inMemoryLocks.set(lockKey, now + ttlMs);
-    return true;
+    inMemoryLocks.set(lockKey, { token, expiresAt: now + ttlMs });
+    return token;
   }
 
   /**
    * Release a previously acquired lock
    * @param resourceKey Unique resource identifier
    */
-  public static async releaseLock(resourceKey: string): Promise<void> {
+  public static async releaseLock(resourceKey: string, token: string): Promise<void> {
     const lockKey = `lock:${resourceKey}`;
 
     if (LockService.redisClient && LockService.redisClient.status === 'ready') {
       try {
-        await LockService.redisClient.del(lockKey);
+        await LockService.redisClient.eval(
+          "if redis.call('get', KEYS[1]) == ARGV[1] then return redis.call('del', KEYS[1]) else return 0 end",
+          1,
+          lockKey,
+          token
+        );
       } catch (err) {
         // Fallback
       }
     }
 
-    inMemoryLocks.delete(lockKey);
+    if (inMemoryLocks.get(lockKey)?.token === token) inMemoryLocks.delete(lockKey);
   }
 }
-

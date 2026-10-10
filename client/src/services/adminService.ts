@@ -55,6 +55,10 @@ export const adminService = {
     const res = await apiClient.get('/admin/payments');
     return res.data.data;
   },
+  getFines: async () => {
+    const res = await apiClient.get('/admin/fines');
+    return res.data.data;
+  },
 
   getAnalytics: async () => {
     const res = await apiClient.get('/admin/analytics');
@@ -81,5 +85,4 @@ export const adminService = {
     return res.data.data;
   },
 };
-
 

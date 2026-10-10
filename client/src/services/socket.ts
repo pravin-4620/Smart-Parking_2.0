@@ -1,27 +1,33 @@
-import { io, Socket } from 'socket.io-client';
+import { io, Socket } from "socket.io-client";
+import type { ParkingUpdatedEvent } from "@smart-parking/shared";
 
 let socket: Socket | null = null;
+const joinedParkingRooms = new Map<string, number>();
 
 export const getSocket = (): Socket => {
   if (!socket) {
     socket = io(window.location.origin, {
-      path: '/socket.io',
-      transports: ['websocket', 'polling'],
+      path: "/socket.io",
+      transports: ["websocket", "polling"],
       autoConnect: true,
       reconnectionAttempts: 10,
       reconnectionDelay: 1000,
+      auth: { token: localStorage.getItem('accessToken') },
     });
 
-    socket.on('connect', () => {
-      console.log('⚡ Socket.IO Connected to Server:', socket?.id);
+    socket.on("connect", () => {
+      console.log("⚡ Socket.IO Connected to Server:", socket?.id);
+      joinedParkingRooms.forEach((_count, parkingLocationId) => {
+        socket?.emit("join:parking", parkingLocationId);
+      });
     });
 
-    socket.on('disconnect', (reason) => {
-      console.log('⚡ Socket.IO Disconnected:', reason);
+    socket.on("disconnect", (reason) => {
+      console.log("⚡ Socket.IO Disconnected:", reason);
     });
 
-    socket.on('connect_error', (err) => {
-      console.warn('⚡ Socket.IO Connection Error:', err.message);
+    socket.on("connect_error", (err) => {
+      console.warn("⚡ Socket.IO Connection Error:", err.message);
     });
   }
 
@@ -34,110 +40,139 @@ export const getSocket = (): Socket => {
 
 // Room Joiners
 export const joinParkingRoom = (parkingLocationId: string) => {
+  const currentCount = joinedParkingRooms.get(parkingLocationId) ?? 0;
+  joinedParkingRooms.set(parkingLocationId, currentCount + 1);
   const s = getSocket();
-  s.emit('join:parking', parkingLocationId);
+  if (currentCount === 0) s.emit("join:parking", parkingLocationId);
 };
 
 export const leaveParkingRoom = (parkingLocationId: string) => {
+  const currentCount = joinedParkingRooms.get(parkingLocationId) ?? 0;
+  if (currentCount > 1) {
+    joinedParkingRooms.set(parkingLocationId, currentCount - 1);
+    return;
+  }
+  joinedParkingRooms.delete(parkingLocationId);
   const s = getSocket();
-  s.emit('leave:parking', parkingLocationId);
+  s.emit("leave:parking", parkingLocationId);
 };
 
 export const joinManagerRoom = () => {
   const s = getSocket();
-  s.emit('join:manager');
+  s.emit("join:manager");
 };
 
 export const joinAdminRoom = () => {
   const s = getSocket();
-  s.emit('join:admin');
+  s.emit("join:admin");
 };
 
 export const joinUserRoom = (userId: string) => {
   const s = getSocket();
-  s.emit('join:user', userId);
+  s.emit("join:user", userId);
 };
 
 // Event Listeners with Cleanup Functions
 export const subscribeToSlotUpdated = (
-  callback: (data: { parkingLocationId: string; slotId: string; slotNumber: string; status: string }) => void
+  callback: (data: {
+    parkingLocationId: string;
+    slotId: string;
+    slotNumber: string;
+    status: string;
+  }) => void,
 ) => {
   const s = getSocket();
-  s.on('slot:updated', callback);
-  s.on('slot:status', callback); // compatibility alias
+  s.on("slot:updated", callback);
+  s.on("slot:status", callback); // compatibility alias
   return () => {
-    s.off('slot:updated', callback);
-    s.off('slot:status', callback);
+    s.off("slot:updated", callback);
+    s.off("slot:status", callback);
   };
 };
 
 export const subscribeToParkingUpdated = (
-  callback: (data: {
-    parkingLocationId: string;
-    totalSlots: number;
-    availableSlots: number;
-    occupiedSlots: number;
-    reservedSlots: number;
-    occupancyRate: number;
-  }) => void
+  callback: (data: ParkingUpdatedEvent) => void,
 ) => {
   const s = getSocket();
-  s.on('parking:updated', callback);
-  s.on('parking:update', callback); // compatibility alias
+  s.on("parking:updated", callback);
+  s.on("parking:update", callback); // compatibility alias
   return () => {
-    s.off('parking:updated', callback);
-    s.off('parking:update', callback);
+    s.off("parking:updated", callback);
+    s.off("parking:update", callback);
   };
 };
 
 export const subscribeToReservationUpdated = (
-  callback: (data: { reservationId: string; status: string; parkingLocationId?: string; slotNumber?: string }) => void
+  callback: (data: {
+    reservationId: string;
+    status: string;
+    parkingLocationId?: string;
+    slotNumber?: string;
+  }) => void,
 ) => {
   const s = getSocket();
-  s.on('reservation:updated', callback);
-  return () => s.off('reservation:updated', callback);
+  s.on("reservation:updated", callback);
+  return () => s.off("reservation:updated", callback);
 };
 
 export const subscribeToSessionUpdated = (
-  callback: (data: { sessionId: string; status: string; checkInTime?: string; checkOutTime?: string }) => void
+  callback: (data: {
+    sessionId: string;
+    status: string;
+    checkInTime?: string;
+    checkOutTime?: string;
+  }) => void,
 ) => {
   const s = getSocket();
-  s.on('session:updated', callback);
-  return () => s.off('session:updated', callback);
+  s.on("session:updated", callback);
+  return () => s.off("session:updated", callback);
 };
 
 export const subscribeToDeviceUpdated = (
-  callback: (data: { deviceId: string; status: string; lastHeartbeat?: string }) => void
+  callback: (data: {
+    deviceId: string;
+    status: string;
+    lastHeartbeat?: string;
+  }) => void,
 ) => {
   const s = getSocket();
-  s.on('device:updated', callback);
-  s.on('device:status', callback); // compatibility alias
+  s.on("device:updated", callback);
+  s.on("device:status", callback); // compatibility alias
   return () => {
-    s.off('device:updated', callback);
-    s.off('device:status', callback);
+    s.off("device:updated", callback);
+    s.off("device:status", callback);
   };
 };
 
 export const subscribeToDeviceOffline = (
-  callback: (data: { deviceId: string; status: string }) => void
+  callback: (data: { deviceId: string; status: string }) => void,
 ) => {
   const s = getSocket();
-  s.on('device:offline', callback);
-  return () => s.off('device:offline', callback);
+  s.on("device:offline", callback);
+  return () => s.off("device:offline", callback);
 };
 
 export const subscribeToNotificationNew = (
-  callback: (data: { notificationId: string; title: string; message: string; type?: string }) => void
+  callback: (data: {
+    notificationId: string;
+    title: string;
+    message: string;
+    type?: string;
+  }) => void,
 ) => {
   const s = getSocket();
-  s.on('notification:new', callback);
-  return () => s.off('notification:new', callback);
+  s.on("notification:new", callback);
+  return () => s.off("notification:new", callback);
 };
 
 export const subscribeToPredictionUpdated = (
-  callback: (data: { parkingLocationId: string; predictedOccupancyRate: number; confidenceScore?: number }) => void
+  callback: (data: {
+    parkingLocationId: string;
+    predictedOccupancyRate: number;
+    confidenceScore?: number;
+  }) => void,
 ) => {
   const s = getSocket();
-  s.on('prediction:updated', callback);
-  return () => s.off('prediction:updated', callback);
+  s.on("prediction:updated", callback);
+  return () => s.off("prediction:updated", callback);
 };

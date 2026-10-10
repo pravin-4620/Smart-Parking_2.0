@@ -4,9 +4,10 @@ import { managerService } from '../../services/managerService.js';
 
 export const ManagerReservationsPage: React.FC = () => {
   const [reservations, setReservations] = useState<any[]>([]);
+  const load = () => managerService.getReservations().then(setReservations).catch(console.error);
 
   useEffect(() => {
-    managerService.getReservations().then(setReservations).catch(console.error);
+    load();
   }, []);
 
   return (
@@ -22,6 +23,7 @@ export const ManagerReservationsPage: React.FC = () => {
               <th className="p-3">Start Time</th>
               <th className="p-3">End Time</th>
               <th className="p-3">Total Price</th>
+              <th className="p-3">Action</th>
             </tr>
           </thead>
           <tbody className="divide-y divide-slate-100">
@@ -33,6 +35,7 @@ export const ManagerReservationsPage: React.FC = () => {
                 <td data-label="Start Time" className="p-3">{new Date(r.startTime).toLocaleString()}</td>
                 <td data-label="End Time" className="p-3">{new Date(r.endTime).toLocaleString()}</td>
                 <td data-label="Total Price" className="p-3 font-bold">₹{r.pricingSnapshot?.totalAmount}</td>
+                <td data-label="Action" className="p-3">{r.status === 'PENDING_CONFIRMATION' && <button className="ui-button ui-button-primary" onClick={() => managerService.confirmReservation(r._id).then(load)}>Confirm</button>}</td>
               </tr>
             ))}
           </tbody>

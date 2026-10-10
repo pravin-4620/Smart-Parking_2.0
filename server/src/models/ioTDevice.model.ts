@@ -10,6 +10,12 @@ export interface IIoTDevice extends Document {
   lastMessageAt?: Date;
   thingName: string;
   isActive: boolean;
+  lastCommandRevision?: number;
+  lastCommandId?: string;
+  lastCommandAt?: Date;
+  lastAckRevision?: number;
+  lastAckCommandId?: string;
+  lastAckAt?: Date;
   createdAt: Date;
   updatedAt: Date;
 }
@@ -56,6 +62,12 @@ const ioTDeviceSchema = new Schema<IIoTDevice>(
       type: Boolean,
       default: true,
     },
+    lastCommandRevision: Number,
+    lastCommandId: String,
+    lastCommandAt: Date,
+    lastAckRevision: Number,
+    lastAckCommandId: String,
+    lastAckAt: Date,
   },
   {
     timestamps: true,
